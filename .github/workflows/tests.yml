@@ -1,0 +1,116 @@
+# Runs both test suites on every push and pull request.
+#
+# Android needs a JDK and the Android SDK; Windows needs the .NET SDK. They cannot share a
+# single runner cleanly, so they are two jobs - but both must be green to pass.
+name: tests
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android (unit tests + lint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: NetPilotMobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The build compiles against SDK 36. Point ANDROID_HOME at the runner's preinstalled
+      # SDK and let the licenses be accepted so the missing platform is downloaded.
+      - name: Accept Android SDK licenses
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "build-tools;36.1.0" > /dev/null 2>&1 || true
+
+      - name: Lint + unit tests + assemble
+        run: ./gradlew lintDebug testDebugUnitTest assembleDebug --no-daemon --console=plain
+
+      - name: Upload the test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
+          path: NetPilotMobile/app/build/reports/tests/
+          if-no-files-found: ignore
+
+  windows:
+    name: Windows (unit + integration tests)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: NetPilot.Tests
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore
+
+      # The integration tests that touch real DNS servers and real QoS policies skip
+      # themselves unless the runner is elevated, so a plain `dotnet test` here runs the
+      # 43-test suite with those four counted as no-ops. To exercise them, run the same
+      # suite locally with Tools\verify.ps1 -Elevated.
+      - name: Test
+        run: dotnet test --no-restore --verbosity normal
+
+      - name: Upload the test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-results
+          path: NetPilot.Tests/TestResults/
+          if-no-files-found: ignore
+
+  installer:
+    name: Installer (install -> run -> uninstall)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build the installer
+        shell: pwsh
+        run: .\installer\build.ps1
+
+      # The installer needs administrator, which a GitHub runner can grant with an elevated
+      # PowerShell, so the same script the project uses for local testing runs here too.
+      - name: End-to-end installer test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath powershell -ArgumentList @(
+                  '-NoProfile','-ExecutionPolicy','Bypass','-File','installer\test.ps1') `
+                -Verb RunAs -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer test failed: $($p.ExitCode)" }
+          Get-Content installer\test-report.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: netpilot-setup
+          path: dist/NetPilot-Setup.exe
+          if-no-files-found: error

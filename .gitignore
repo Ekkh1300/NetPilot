@@ -28,7 +28,11 @@ payload.zip
 
 # ---------------------------------------------------------------- build artefacts & scratch
 *.apk.*.idsig
+# Test-run output written by the self-test / health-test modes and by the harness.
 selftest*.txt
+langcheck.txt
+healthcheck.txt
+elev_*.txt
 pending-share.flag
 st-*.png
 np-*.png
@@ -54,3 +58,9 @@ desktop.ini
 .idea/
 .vscode/
 *.swp
+
+# scratch files the harness and my own capture commands leave behind
+harness.out
+harness.err
+shot.out
+shot.err

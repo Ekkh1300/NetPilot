@@ -1,5 +1,12 @@
 # NetPilot
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/Ekkh1300/NetPilot)](https://github.com/Ekkh1300/NetPilot/releases)
+[![Android](https://img.shields.io/badge/Android-8.0%2B-3DDC84)](https://developer.android.com)
+[![Windows](https://img.shields.io/badge/Windows-10%201607%2B-0078D4)](https://learn.microsoft.com/dotnet/core/project-sdk/dependencies)
+
+**English** · [فارسی](README.fa.md)
+
 **Network control for Android, and a companion app for Windows.**
 DNS you choose and test yourself, live traffic you can actually see, per-app bandwidth
 caps, scheduled limits — and a phone VPN tunnel that can be shared with a Windows PC.
@@ -13,11 +20,28 @@ Two apps, one repository:
 | `NetPilot.Tests/` | Unit and integration tests for the Windows side |
 
 <p align="center">
-  <img src="docs/images/dashboard.png" width="220" alt="Dashboard" />
-  <img src="docs/images/dns.png" width="220" alt="DNS" />
-  <img src="docs/images/monitor.png" width="220" alt="Monitor" />
-  <img src="docs/images/phone-tunnel.png" width="220" alt="Phone tunnel to PC" />
+  <img src="docs/images/play/01-dashboard.png" width="200" alt="Android dashboard" />
+  <img src="docs/images/play/02-dns.png" width="200" alt="DNS manager" />
+  <img src="docs/images/play/03-monitor.png" width="200" alt="Live monitor" />
+  <img src="docs/images/play/08-phone-tunnel.png" width="200" alt="Phone tunnel to PC" />
 </p>
+
+## Screenshots
+
+### Android
+
+| | |
+|---|---|
+| <img src="docs/images/play/04-app-usage.png" width="220" alt="Per-app usage"> | <img src="docs/images/play/05-net-limiter.png" width="220" alt="Internet limiter"> |
+| <img src="docs/images/play/06-network-tools.png" width="220" alt="Network tools"> | <img src="docs/images/play/07-profiles.png" width="220" alt="Profiles"> |
+
+### Windows
+
+| | |
+|---|---|
+| <img src="docs/images/windows/01-dashboard.png" width="330" alt="Dashboard"> | <img src="docs/images/windows/02-dns.png" width="330" alt="DNS management"> |
+| <img src="docs/images/windows/03-monitor.png" width="330" alt="Network monitor"> | <img src="docs/images/windows/04-net-limiter.png" width="330" alt="Internet limiter"> |
+| <img src="docs/images/windows/05-phone-tunnel.png" width="330" alt="Phone Tunnel to PC"> | <img src="docs/images/windows/06-network-tools.png" width="330" alt="Network tools"> |
 
 ---
 
