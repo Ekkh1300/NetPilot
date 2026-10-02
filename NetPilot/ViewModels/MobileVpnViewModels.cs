@@ -338,8 +338,10 @@ public sealed class MobileVpnViewModel : PageVmBase
             _ => Warn,
         };
 
-        PcVpnText = L.Instance[s.PcVpnActive ? "mv_pc_vpn_on" : "mv_pc_vpn_off"];
-        PcVpnBrush = s.PcVpnActive ? Warn : Good;
+        PcVpnText = s.PcVpnActive ? L.Instance["mv_pc_vpn_on"]
+                   : s.PcVpnUnknown ? L.Instance["mv_pc_vpn_unknown"]
+                   : L.Instance["mv_pc_vpn_off"];
+        PcVpnBrush = s.PcVpnActive ? Warn : s.PcVpnUnknown ? Muted : Good;
 
         PcText = L.Instance[s.PcConnected ? "mv_pc_connected" : "mv_pc_disconnected"];
         PcBrush = s.PcConnected ? Good : Bad;
@@ -383,6 +385,8 @@ public sealed class MobileVpnViewModel : PageVmBase
 
     private static readonly Brush Good = new SolidColorBrush(Color.FromRgb(52, 211, 153));
     private static readonly Brush Warn = new SolidColorBrush(Color.FromRgb(251, 191, 36));
+    // Neutral, for "we cannot tell" - neither a green tick nor a warning.
+    private static readonly Brush Muted = new SolidColorBrush(Color.FromRgb(148, 163, 184));
     private static readonly Brush Bad = new SolidColorBrush(Color.FromRgb(248, 113, 113));
 
     private void SyncLinks(List<MvLink> fresh)

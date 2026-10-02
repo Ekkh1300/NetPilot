@@ -47,6 +47,10 @@ public sealed class MvState
     /// <summary>true = the phone reports an active VPN, false = reported inactive, null = unknown.</summary>
     public bool? MobileVpnActive;
     public bool PcVpnActive;
+    /// <summary>A VPN-looking adapter is up but carries no usable address: a VPN client is
+    /// installed and not tunnelling. Not "active" (that blocks sharing for no reason) and not
+    /// confidently "inactive" either, so the page says unknown instead of guessing.</summary>
+    public bool PcVpnUnknown;
     public bool PcConnected;
     public int LocalPeers;
     public long RateDown;
@@ -228,6 +232,7 @@ public sealed class MobileVpnService
         if (!ok || !Sys.TryExtractJson(output, out var json)) return FailedProbeState();
 
         bool pcVpnUp = false;
+        bool pcVpnUnconfirmed = false;
         int vpnConn = 0;
         try
         {
@@ -269,7 +274,17 @@ public sealed class MobileVpnService
                     // but they are exactly what the "PC VPN" indicator is built from.
                     if (link.IsVpn)
                     {
-                        if (link.IsUp) pcVpnUp = true;
+                        // "Up" only means the virtual NIC is connected at the driver level,
+                        // which is true on most machines that merely *have* a VPN client
+                        // installed but are not tunnelling. Treating that as a live tunnel is
+                        // what made the page claim "PC VPN connected" on machines where it
+                        // was not - and a wrong "active" also blocks sharing. An established
+                        // tunnel carries a usable address; an idle one is empty or APIPA.
+                        if (link.IsUp)
+                        {
+                            if (HasUsableIpv4(link.Ipv4)) pcVpnUp = true;
+                            else pcVpnUnconfirmed = true;
+                        }
                         continue;
                     }
                     state.Links.Add(link);
@@ -278,7 +293,11 @@ public sealed class MobileVpnService
         }
         catch (Exception ex) { App.LogCrash(ex); }
 
-        state.PcVpnActive = pcVpnUp || vpnConn > 0;
+        // A Windows VPN profile that reports Connected is authoritative and needs no
+        // corroboration. Otherwise fall back to the adapters, and if a VPN-looking adapter
+        // is up but carries no address, say "unknown" rather than guess either way.
+        state.PcVpnActive = vpnConn > 0 || pcVpnUp;
+        state.PcVpnUnknown = !state.PcVpnActive && pcVpnUnconfirmed;
         state.PcConnected = state.Links.Any(l => l.IsUp && !l.IsVpn && !string.IsNullOrEmpty(l.Ipv4) &&
                                                   !string.IsNullOrEmpty(l.Gateway));
         state.MobileVpnActive = ReportedMobileVpn;
@@ -345,6 +364,7 @@ public sealed class MobileVpnService
             MobileConnected = prev.MobileConnected,
             MobileVpnActive = prev.MobileVpnActive,
             PcVpnActive = prev.PcVpnActive,
+            PcVpnUnknown = prev.PcVpnUnknown,
             PcConnected = prev.PcConnected,
             LocalPeers = prev.LocalPeers,
             RateDown = prev.RateDown,
@@ -803,6 +823,30 @@ if ('{{REVERT_PROXY}}' -eq '1') {
 # our metrics - and the next Share then captured those wrong numbers as the new 'original'.
 'RESTORED=' + $ok
 'FAILED=' + $fail";
+
+    /// <summary>
+    /// True when an interface holds at least one real IPv4 address.
+    ///
+    /// This is what separates a live tunnel from a virtual network card that the driver
+    /// merely reports as connected. APIPA (169.254.0.0/16) is what Windows self-assigns when
+    /// DHCP fails, so it is the signature of an adapter that is present but has no network
+    /// behind it.
+    /// </summary>
+    internal static bool HasUsableIpv4(string list)
+    {
+        if (string.IsNullOrWhiteSpace(list)) return false;
+        foreach (var part in list.Split(','))
+        {
+            string ip = part.Trim();
+            if (ip.Length == 0) continue;
+            if (ip == "0.0.0.0" || ip.StartsWith("127.")) continue;
+            if (ip.StartsWith("169.254.")) continue;
+            if (System.Net.IPAddress.TryParse(ip, out var parsed) &&
+                parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                return true;
+        }
+        return false;
+    }
 
     /// <summary>Adapters that are tunnels rather than a path to the phone (WAN Miniport,
     /// OpenVPN, WireGuard, Tailscale, …). The shared classifier already covers most of

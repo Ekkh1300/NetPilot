@@ -27,6 +27,10 @@ static partial class Strings
         ["mv_pc_disconnected"] = ("PC قطع", "PC Disconnected"),
         ["mv_pc_vpn_on"] = ("VPN رایانه فعال", "PC VPN Active"),
         ["mv_pc_vpn_off"] = ("VPN رایانه غیرفعال", "PC VPN Inactive"),
+        // A VPN client is installed and its adapter is up, but the adapter carries no address:
+        // the honest answer is "cannot tell", not "connected". Guessing "connected" here is
+        // what made users report a VPN that was off.
+        ["mv_pc_vpn_unknown"] = ("VPN رایانه نامشخص", "PC VPN Unknown"),
         ["mv_traffic"] = ("وضعیت ترافیک", "Traffic Status"),
         ["mv_peers"] = ("دستگاه محلی", "Local Devices"),
 

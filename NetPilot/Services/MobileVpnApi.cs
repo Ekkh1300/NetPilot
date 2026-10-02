@@ -208,7 +208,7 @@ public sealed class MobileVpnApi : IDisposable
                     await JsonAsync(res, 200, new
                     {
                         app = "NetPilot",
-                        version = "1.2.0",
+                        version = "1.2.1",
                         api = 1,
                         paired = Paired,
                     }).ConfigureAwait(false);
@@ -423,6 +423,9 @@ public sealed class MobileVpnApi : IDisposable
             mobileConnected = s.MobileConnected,
             mobileVpn = s.MobileVpnActive,                 // true / false / null = unknown
             pcVpnActive = s.PcVpnActive,
+            // Three states, because two of them used to be conflated: a VPN client installed
+            // but not tunnelling is neither "active" nor safely "inactive".
+            pcVpnState = s.PcVpnActive ? "active" : s.PcVpnUnknown ? "unknown" : "inactive",
             pcConnected = s.PcConnected,
             sharing = s.Sharing,
             peers = s.LocalPeers,

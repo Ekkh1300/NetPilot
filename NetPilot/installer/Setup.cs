@@ -25,7 +25,7 @@ namespace NetPilotInstaller
     internal static class Program
     {
         public const string AppName = "NetPilot";
-        public const string Version = "1.2.0";
+        public const string Version = "1.2.1";
         public const string Publisher = "esi";
         public const string PayloadResource = "netpilot.payload.zip";
 

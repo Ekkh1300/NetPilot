@@ -102,7 +102,7 @@ public class MainViewModel : ObservableObject
     public RelayCommand ExitCommand { get; }
     public RelayCommand LangCommand { get; }
 
-    public string VersionText => "NetPilot 1.2.0";
+    public string VersionText => "NetPilot 1.2.1";
 
     public static event Action StatusRefreshRequested;
 
