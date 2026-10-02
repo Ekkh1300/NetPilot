@@ -1,0 +1,191 @@
+<Window x:Class="NetPilot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{Binding Lang[app_title]}"
+        Width="1280" Height="820"
+        MinWidth="1080" MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False"
+        Background="{StaticResource B.Bg}"
+        FontFamily="{StaticResource F.Main}"
+        FontSize="13"
+        Foreground="{StaticResource B.Text}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        StateChanged="Window_StateChanged"
+        Closing="Window_Closing">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="44"
+                      CornerRadius="0"
+                      GlassFrameThickness="0"
+                      ResizeBorderThickness="6"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- ================= Title bar ================= -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2"
+                Background="{StaticResource B.Surface}"
+                BorderBrush="{StaticResource B.Border}"
+                BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- brand + drag area -->
+                <StackPanel Orientation="Horizontal" Margin="18,0" VerticalAlignment="Center"
+                            MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                    <Border Width="26" Height="26" CornerRadius="8" Background="{StaticResource B.AccentGrad}">
+                        <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                   FontSize="14" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="{Binding Lang[app_title]}" Margin="10,0,0,0"
+                               FontSize="14.5" FontWeight="SemiBold"
+                               Foreground="{StaticResource B.Text}" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <!-- main drag strip -->
+                <Border Grid.Column="1" Background="Transparent"
+                        MouseLeftButtonDown="TitleBar_MouseLeftButtonDown" />
+
+                <!-- caption buttons: opt back into client hit-testing, otherwise the
+                     WindowChrome caption band swallows every mouse click (the handlers
+                     fire only for programmatic calls) -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Style="{StaticResource S.CaptionBtn}" Content="&#xE921;"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Click="Minimize_Click" />
+                    <Button x:Name="MaxButton" Style="{StaticResource S.CaptionBtn}" Content="&#xE922;"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Click="Maximize_Click" />
+                    <Button Style="{StaticResource S.CaptionClose}" Content="&#xE8BB;"
+                            WindowChrome.IsHitTestVisibleInChrome="True"
+                            Click="Close_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= Sidebar ================= -->
+        <Border Grid.Row="1" Grid.Column="0"
+                Background="{StaticResource B.Surface}"
+                BorderBrush="{StaticResource B.Border}"
+                BorderThickness="0,0,1,0">
+            <DockPanel LastChildFill="True">
+
+                <TextBlock DockPanel.Dock="Top" Text="{Binding Lang[app_title]}"
+                           Style="{StaticResource T.Section}" Margin="22,20,22,4" />
+
+                <Border DockPanel.Dock="Bottom" Margin="14,0,14,14" Padding="12,10"
+                        CornerRadius="10" Background="{StaticResource B.SurfaceAlt}"
+                        BorderBrush="{StaticResource B.Border}" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[st_tray_hint]}"
+                                   Style="{StaticResource T.Muted}" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Muted}"
+                                   FontSize="10.5" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Nav}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <RadioButton Style="{StaticResource S.NavItem}"
+                                             GroupName="netpilot-nav"
+                                             Tag="{Binding Glyph}"
+                                             Content="{Binding Label}"
+                                             IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
+        <!-- ================= Page host =================
+             One ContentControl per page with a FIXED Content; selecting a nav item only
+             flips Visibility. Never swap Content on a shared ContentPresenter: doing so
+             makes ContentPresenter.EnsureTemplate null the template and then raise an
+             inheritable DataContext change while the old subtree is still attached,
+             which throws in FrameworkContentElement.OnPropertyChanged and wedges the
+             presenter (the view freezes on the previous page). -->
+        <Border Grid.Row="1" Grid.Column="1" Background="{StaticResource B.Bg}">
+            <ItemsControl ItemsSource="{Binding Nav}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                        </Grid>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <ContentControl Content="{Binding Vm}"
+                                        Visibility="{Binding IsSelected, Converter={StaticResource BoolToVis}}"
+                                        Focusable="False"
+                                        HorizontalContentAlignment="Stretch"
+                                        VerticalContentAlignment="Stretch" />
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Border>
+
+        <!-- ================= Status bar ================= -->
+        <Border Grid.Row="2" Grid.ColumnSpan="2"
+                Background="{StaticResource B.Surface}"
+                BorderBrush="{StaticResource B.Border}"
+                BorderThickness="0,1,0,0"
+                Padding="18,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Ellipse Width="9" Height="9" Fill="{StaticResource B.Success}"
+                             VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StatusDns}" Style="{StaticResource T.Muted}"
+                               Margin="9,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"
+                            Margin="0,0,18,0">
+                    <TextBlock Text="{Binding Lang[db_health]}" Style="{StaticResource T.Muted}"
+                               VerticalAlignment="Center" />
+                    <Border Style="{StaticResource S.Chip}" Margin="9,0,0,0" Background="#1F38BDF8">
+                        <TextBlock Text="{Binding HealthText}" Foreground="{Binding HealthBrush}"
+                                   FontSize="11.5" FontWeight="Bold" />
+                    </Border>
+                </StackPanel>
+
+                <Button Grid.Column="2" Style="{StaticResource S.Btn.Ghost}"
+                        Padding="14,5" MinWidth="64"
+                        Command="{Binding LangCommand}"
+                        Content="{Binding LangButtonText}"
+                        VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

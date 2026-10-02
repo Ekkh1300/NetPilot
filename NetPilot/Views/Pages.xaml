@@ -1,0 +1,2024 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="clr-namespace:NetPilot.ViewModels"
+                    xmlns:ctl="clr-namespace:NetPilot.Controls"
+                    xmlns:core="clr-namespace:NetPilot.Core"
+                    xmlns:lang="clr-namespace:NetPilot.Lang">
+
+    <!-- Shared converters are re-declared here on purpose. FrameworkTemplate content is
+         re-parsed lazily (LoadTemplateXaml) with a fresh parser scope that only covers
+         this dictionary, so {StaticResource} to Application.Resources fails at that
+         moment with "Cannot find resource named ...". The resulting XamlParseException
+         aborts ApplyTemplate halfway and leaves the page half-rendered. Keeping the keys
+         in this dictionary makes every lookup below resolve locally. -->
+    <BooleanToVisibilityConverter x:Key="BoolToVis" />
+    <core:InverseBoolConverter x:Key="InvBool" />
+    <!-- Bool -> Visibility with the value flipped. InvBool answers with a bool, which
+         WPF cannot cast to Visibility, so it must never be used on that property. -->
+    <core:BoolToVisibilityConverter x:Key="InvBoolToVis" Invert="True" />
+    <core:NullToVisibilityConverter x:Key="NullToVis" />
+    <core:NullToVisibilityConverter x:Key="NotNullToVis" Invert="True" />
+    <core:ZeroToVisibilityConverter x:Key="ZeroToVis" />
+    <core:ZeroToVisibilityConverter x:Key="NonZeroToVis" Invert="True" />
+    <core:SpeedFormatConverter x:Key="SpeedFmt" />
+    <core:ProgressFractionConverter x:Key="ProgressFrac" />
+
+    <!-- ==================================================================
+         1) Dashboard
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[dashboard]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding HealthState}" Style="{StaticResource T.Muted}" Margin="0,6,0,20" />
+
+                <!-- KPI tiles -->
+                <UniformGrid Columns="4">
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_download_speed]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding DownText}" Style="{StaticResource T.Value}"
+                                       Margin="0,6,0,0" Foreground="#38BDF8" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_upload_speed]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding UpText}" Style="{StaticResource T.Value}"
+                                       Margin="0,6,0,0" Foreground="#818CF8" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[db_today]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding TodayText}" Style="{StaticResource T.Value}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[db_top_app_now]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding TopApp}" Style="{StaticResource T.H2}"
+                                       Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <!-- Health + live activity -->
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="330" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,14,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[db_health]}" Style="{StaticResource T.Section}" />
+
+                            <Grid Margin="0,4,0,0">
+                                <ctl:DonutGauge Width="158" Height="158" MaxValue="100"
+                                                Value="{Binding Score}" Fill="{Binding ScoreBrush}"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ScoreText}" Style="{StaticResource T.Value}"
+                                               Foreground="{Binding ScoreBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="{Binding Lang[db_health]}" Style="{StaticResource T.Muted}"
+                                               HorizontalAlignment="Center" FontSize="11" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Border Style="{StaticResource S.Separator}" />
+
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Lang[db_dns]}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding DnsDetail}" FontSize="12" Margin="10,0"
+                                           Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Style="{StaticResource S.Chip}" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding DnsRating}" Foreground="{StaticResource B.Text}" FontSize="11.5" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Lang[db_latency]}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding LatDetail}" FontSize="12" Margin="10,0"
+                                           Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Style="{StaticResource S.Chip}" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding LatRating}" Foreground="{StaticResource B.Text}" FontSize="11.5" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Lang[db_packet_loss]}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding LossDetail}" FontSize="12" Margin="10,0"
+                                           Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Style="{StaticResource S.Chip}" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding LossRating}" Foreground="{StaticResource B.Text}" FontSize="11.5" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+
+                            <Grid Margin="0,3">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Lang[db_connection]}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding ConnDetail}" FontSize="12" Margin="10,0"
+                                           Foreground="{StaticResource B.Text2}" VerticalAlignment="Center" />
+                                <Border Grid.Column="2" Style="{StaticResource S.Chip}" HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding ConnRating}" Foreground="{StaticResource B.Text}" FontSize="11.5" FontWeight="SemiBold" />
+                                </Border>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource S.Card}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <DockPanel LastChildFill="False">
+                                <TextBlock Text="{Binding Lang[db_activity]}" Style="{StaticResource T.Section}" DockPanel.Dock="Left" />
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Border Style="{StaticResource S.Chip}">
+                                        <TextBlock Text="{Binding DownText}" Foreground="#38BDF8" FontSize="11.5" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Border Style="{StaticResource S.Chip}" Margin="8,0,0,0">
+                                        <TextBlock Text="{Binding UpText}" Foreground="#818CF8" FontSize="11.5" FontWeight="SemiBold" />
+                                    </Border>
+                                </StackPanel>
+                            </DockPanel>
+
+                            <Grid Grid.Row="1" Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="176" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ctl:OrbControl Width="152" Height="152"
+                                                HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                DownBps="{Binding OrbDown}" UpBps="{Binding OrbUp}"
+                                                State="{Binding OrbState}" />
+                                <ctl:SpeedChart Grid.Column="1" Margin="6,0,0,0"
+                                                DownValues="{Binding ChartDown}" UpValues="{Binding ChartUp}" />
+                            </Grid>
+
+                            <Grid Grid.Row="2" Margin="0,12,0,0">
+                                <UniformGrid Columns="2">
+                                    <StackPanel Margin="0,0,14,0">
+                                        <TextBlock Text="{Binding Lang[dns_current]}" Style="{StaticResource T.Muted}" />
+                                        <TextBlock Text="{Binding CurrentDns}" Style="{StaticResource T.Mono}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Lang[nh_top_app]}" Style="{StaticResource T.Muted}" />
+                                        <TextBlock Text="{Binding TopApp}" Style="{StaticResource T.Mono}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                </UniformGrid>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <!-- Quick actions -->
+                <Border Style="{StaticResource S.Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[db_quick_actions]}" Style="{StaticResource T.Section}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource S.Btn.AccentSoft}" Command="{Binding GoDnsCommand}"
+                                    Content="{Binding Lang[db_quick_switch]}" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Command="{Binding GoBenchmarkCommand}" Content="{Binding Lang[db_run_benchmark]}" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Command="{Binding GoHistoryCommand}" Content="{Binding Lang[db_view_history]}" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Command="{Binding GoToolsCommand}" Content="{Binding Lang[db_open_tools]}" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Command="{Binding GoMonitorCommand}" Content="{Binding Lang[network_monitor]}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         2) DNS Manager
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:DnsManagerViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[dns_manager]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[dns_current]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Style="{StaticResource S.Btn.Ghost}" Command="{Binding RestoreCommand}"
+                                Content="{Binding Lang[restore]}" />
+                        <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0" Command="{Binding FlushCommand}"
+                                Content="{Binding Lang[nt_flush_dns]}" />
+                        <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0" Command="{Binding RefreshCommand}"
+                                Content="{Binding Lang[refresh]}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,0,0,14">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="270" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[dns_servers_list]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding CurrentDnsSummary}" Style="{StaticResource T.Mono}"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="{Binding Lang[dns_adapter]}" Style="{StaticResource T.Label}" />
+                            <!-- Explicit ItemTemplate: the custom ComboBox template shows the
+                                 selection box through SelectionBoxItemTemplate, which is only
+                                 populated from ItemTemplate; DisplayMemberPath would leave it
+                                 null and the box would fall back to object.ToString(). -->
+                            <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding Adapters}"
+                                      SelectedItem="{Binding SelectedAdapter}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Margin="0,0,0,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid>
+                        <TextBox Style="{StaticResource S.Input}"
+                                 Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="{Binding Lang[dns_search_ph]}" Margin="11,0,0,0" VerticalAlignment="Center"
+                                   IsHitTestVisible="False" Foreground="{StaticResource B.Text2}" FontSize="13"
+                                   Visibility="{Binding Search, Converter={StaticResource NullToVis}}" />
+                    </Grid>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                        <ToggleButton Style="{StaticResource S.Toggle}" IsChecked="{Binding FavOnly}" />
+                        <TextBlock Text="{Binding Lang[dns_favorites_only]}" Style="{StaticResource T.Muted}"
+                                   Margin="10,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[dns_provider]}" Style="{StaticResource T.Section}" />
+                        <ListBox ItemsSource="{Binding Filtered}"
+                                 SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                                 ItemContainerStyle="{StaticResource S.Row}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="34" Height="34" CornerRadius="11" Background="#16FFFFFF"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                       FontSize="15" Foreground="{Binding Color}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0,0,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                           FontSize="13.5" FontWeight="SemiBold" />
+                                                <Border Style="{StaticResource S.Chip}" Margin="8,0,0,0"
+                                                        Visibility="{Binding IsCurrent, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding Path=[current], Source={x:Static lang:Lang.Instance}}"
+                                                               FontSize="10.5" Foreground="{StaticResource B.Accent}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Servers}" FontSize="11.5"
+                                                       FontFamily="Cascadia Mono, Consolas"
+                                                       Foreground="{StaticResource B.Text2}" Margin="0,3,0,0"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <ToggleButton Grid.Column="2" Style="{StaticResource S.Toggle}"
+                                                      VerticalAlignment="Center" IsChecked="{Binding IsFavorite}"
+                                                      ToolTip="{Binding Path=[favorite], Source={x:Static lang:Lang.Instance}}"
+                                                      Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                      CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <TextBlock Text="{Binding Lang[dns_select_hint]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding NoEntries, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                    <Button Style="{StaticResource S.Btn.Primary}" Command="{Binding ApplyCommand}"
+                            Content="{Binding Lang[apply]}" MinWidth="130" />
+                    <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0" Command="{Binding ShowCustomCommand}"
+                            Content="{Binding Lang[dns_add_custom]}" />
+                </StackPanel>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0"
+                        Visibility="{Binding ShowCustomForm, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[dns_add_custom]}" Style="{StaticResource T.Section}" />
+                        <UniformGrid Columns="3">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[dns_custom_name]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding CustomName, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[dns_primary]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding CustomPrimary, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[dns_secondary]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding CustomSecondary, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </UniformGrid>
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Style="{StaticResource S.Btn.Primary}" Command="{Binding AddCustomCommand}"
+                                    Content="{Binding Lang[add]}" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0" Command="{Binding ShowCustomCommand}"
+                                    Content="{Binding Lang[cancel]}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         3) DNS Benchmark
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:BenchmarkViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[dns_benchmark]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[bm_compare_note]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[bm_rounds]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" Width="110"
+                                          ItemsSource="{Binding RoundsOptions}" SelectedItem="{Binding Rounds}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                                <TextBlock Text=" " Style="{StaticResource T.Label}" />
+                                <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[bm_run]}"
+                                        Command="{Binding RunCommand}" IsEnabled="{Binding NotRunning}" MinWidth="150" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2" Margin="16,0,0,0">
+                                <TextBlock Text=" " Style="{StaticResource T.Label}" />
+                                <Button Style="{StaticResource S.Btn.Danger}" Content="{Binding Lang[bm_stop]}"
+                                        Command="{Binding StopCommand}" IsEnabled="{Binding IsRunning}" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Lang[bm_best_hint]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding BestText}" Style="{StaticResource T.H2}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <ProgressBar Style="{StaticResource S.Progress}" Margin="0,16,0,0"
+                                     Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}"
+                                     Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[bm_chart]}" Style="{StaticResource T.Section}" />
+                        <ctl:HBarChart Items="{Binding ChartItems}" Height="230" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Lang[bm_no_results]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding NoResults, Converter={StaticResource BoolToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0"
+                        Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[bm_results]}" Style="{StaticResource T.Section}" />
+                        <ListBox ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedResult}"
+                                 ItemContainerStyle="{StaticResource S.Row}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                            <ColumnDefinition Width="90" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="30" Height="30" CornerRadius="10" Background="#16FFFFFF"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                       FontSize="14" Foreground="{Binding Color}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <Border Grid.Column="1" Style="{StaticResource S.Chip}" HorizontalAlignment="Left"
+                                                VerticalAlignment="Center"
+                                                Background="{DynamicResource B.AccentGrad}">
+                                            <TextBlock Text="{Binding RankText}" Foreground="White" FontWeight="Bold" FontSize="11.5" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="13.5" FontWeight="SemiBold" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[bm_avg], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="10.5" />
+                                            <TextBlock Text="{Binding AvgText}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="13" FontWeight="SemiBold" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[bm_packet_loss], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="10.5" />
+                                            <TextBlock Text="{Binding LossText}" Foreground="{StaticResource B.Text}" FontSize="13" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="5" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[bm_response_time], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="10.5" />
+                                            <TextBlock Text="{Binding PingText}" Foreground="{StaticResource B.Text}" FontSize="13" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         4) Smart DNS
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:SmartDnsViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[smart_dns]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[sd_title]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[sd_scan]}"
+                                    Command="{Binding ScanCommand}" IsEnabled="{Binding NotScanning}" MinWidth="180" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Content="{Binding Lang[sd_apply_suggested]}"
+                                    Command="{Binding ApplyCommand}" IsEnabled="{Binding NotScanning}" />
+                        </StackPanel>
+
+                        <ProgressBar Style="{StaticResource S.Progress}" Margin="0,16,0,0"
+                                     Minimum="0" Maximum="100" Value="{Binding Progress, Mode=OneWay}"
+                                     Visibility="{Binding IsScanning, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[sd_current_dns]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding CurrentDns}" Style="{StaticResource T.Mono}"
+                                       Margin="0,6,0,0" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[sd_recommendation]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding Recommendation}" Style="{StaticResource T.H2}"
+                                       Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition />
+                                <ColumnDefinition />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[sd_improvement]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding ImprovementText}" Style="{StaticResource T.Value}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{Binding Lang[sd_faster_count]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding FasterCount}" Style="{StaticResource T.Value}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[details]}" Style="{StaticResource T.Section}" />
+                        <ItemsControl ItemsSource="{Binding Steps}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <DockPanel Margin="0,3">
+                                        <Ellipse DockPanel.Dock="Left" Width="7" Height="7" Fill="{StaticResource B.Accent}"
+                                                 VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding}" Style="{StaticResource T.Mono}" FontSize="12"
+                                                   Margin="10,0,0,0" TextWrapping="Wrap" />
+                                    </DockPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0"
+                        Visibility="{Binding HasSuggestions, Converter={StaticResource BoolToVis}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[bm_results]}" Style="{StaticResource T.Section}" />
+                        <ListBox ItemsSource="{Binding Suggestions}" SelectedItem="{Binding SelectedSuggestion}"
+                                 ItemContainerStyle="{StaticResource S.Row}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="90" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="30" Height="30" CornerRadius="10" Background="#16FFFFFF"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                       FontSize="14" Foreground="{Binding Color}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="13.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Path=[bm_packet_loss], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="11" Margin="0,2,0,0" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Style="{StaticResource S.Chip}" VerticalAlignment="Center"
+                                                Background="{DynamicResource B.AccentGrad}">
+                                            <TextBlock Text="{Binding RankText}" Foreground="White" FontWeight="Bold" FontSize="11.5" />
+                                        </Border>
+                                        <TextBlock Grid.Column="3" Text="{Binding AvgText}" VerticalAlignment="Center"
+                                                   HorizontalAlignment="Right" Foreground="{StaticResource B.Text}"
+                                                   FontSize="13" FontWeight="SemiBold" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         5) Network Monitor
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:MonitorViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[network_monitor]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding StateText}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}" Background="#1F38BDF8">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource B.Accent}" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding Lang[mon_live]}" Foreground="{StaticResource B.Accent}"
+                                       FontSize="11.5" FontWeight="Bold" Margin="7,0,0,0" />
+                        </StackPanel>
+                    </Border>
+                </DockPanel>
+
+                <Border Style="{StaticResource S.Card}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="230" />
+                        </Grid.RowDefinitions>
+
+                        <UniformGrid Columns="4">
+                            <StackPanel Margin="0,0,14,0">
+                                <TextBlock Text="{Binding Lang[mon_download_speed]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding DownText}" Style="{StaticResource T.Value}"
+                                           Margin="0,4,0,0" Foreground="#38BDF8" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,14,0">
+                                <TextBlock Text="{Binding Lang[mon_upload_speed]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding UpText}" Style="{StaticResource T.Value}"
+                                           Margin="0,4,0,0" Foreground="#818CF8" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,14,0">
+                                <TextBlock Text="{Binding Lang[mon_ping]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding PingText}" Style="{StaticResource T.Value}" Margin="0,4,0,0" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[mon_packet_loss]}" Style="{StaticResource T.Muted}" />
+                                <TextBlock Text="{Binding LossText}" Style="{StaticResource T.Value}" Margin="0,4,0,0" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <Grid Grid.Row="1" Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="196" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <ctl:OrbControl Width="176" Height="176"
+                                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            DownBps="{Binding OrbDown}" UpBps="{Binding OrbUp}"
+                                            State="{Binding OrbState}" />
+                            <ctl:SpeedChart Grid.Column="1" Margin="6,0,0,0"
+                                            DownValues="{Binding ChartDown}" UpValues="{Binding ChartUp}" />
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_uptime]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding UptimeText}" Style="{StaticResource T.H2}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_total_down]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding SessionDownText}" Style="{StaticResource T.H2}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_total_up]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding SessionUpText}" Style="{StaticResource T.H2}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mon_target]}" Style="{StaticResource T.Label}" />
+                            <TextBox Style="{StaticResource S.Input}" Text="{Binding Target, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         6) Per-App Usage
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:PerAppViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[per_app_usage]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[pa_desc]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}">
+                        <TextBlock Text="{Binding TotalCount}" Foreground="{StaticResource B.Text}" FontSize="11.5" FontWeight="SemiBold" />
+                    </Border>
+                </DockPanel>
+
+                <Grid Margin="0,0,0,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid>
+                        <TextBox Style="{StaticResource S.Input}"
+                                 Text="{Binding Search, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock Text="{Binding Lang[pa_search_ph]}" Margin="11,0,0,0" VerticalAlignment="Center"
+                                   IsHitTestVisible="False" Foreground="{StaticResource B.Text2}" FontSize="13"
+                                   Visibility="{Binding Search, Converter={StaticResource NullToVis}}" />
+                    </Grid>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0" VerticalAlignment="Center">
+                        <Button Style="{StaticResource S.SegBtn}" Content="{Binding Lang[download]}"
+                                Command="{Binding SortCommand}" CommandParameter="down" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[upload]}"
+                                Command="{Binding SortCommand}" CommandParameter="up" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[total]}"
+                                Command="{Binding SortCommand}" CommandParameter="total" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[pa_connections]}"
+                                Command="{Binding SortCommand}" CommandParameter="conn" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[name]}"
+                                Command="{Binding SortCommand}" CommandParameter="name" />
+                    </StackPanel>
+                </Grid>
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <!-- column headers -->
+                        <Grid Margin="4,0,4,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="42" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="110" />
+                                <ColumnDefinition Width="80" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="" />
+                            <TextBlock Grid.Column="1" Text="{Binding Lang[pa_app]}" Style="{StaticResource T.Label}" Margin="0" />
+                            <TextBlock Grid.Column="2" Text="{Binding Lang[pa_down_speed]}" Style="{StaticResource T.Label}" Margin="0" />
+                            <TextBlock Grid.Column="3" Text="{Binding Lang[pa_up_speed]}" Style="{StaticResource T.Label}" Margin="0" />
+                            <TextBlock Grid.Column="4" Text="{Binding Lang[pa_total_down]}" Style="{StaticResource T.Label}" Margin="0" />
+                            <TextBlock Grid.Column="5" Text="{Binding Lang[pa_total_up]}" Style="{StaticResource T.Label}" Margin="0" />
+                            <TextBlock Grid.Column="6" Text="{Binding Lang[pa_connections]}" Style="{StaticResource T.Label}" Margin="0" />
+                        </Grid>
+
+                        <Border Style="{StaticResource S.Separator}" Margin="0,0,0,6" />
+
+                        <Border MaxHeight="560">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding Items}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource S.ListRow}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="42" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="110" />
+                                                        <ColumnDefinition Width="80" />
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Width="30" Height="30" CornerRadius="10" Background="#16FFFFFF"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                                   FontSize="14" Foreground="{StaticResource B.Accent}"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,12,0">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                                       FontSize="13.5" FontWeight="SemiBold" />
+                                                            <Border Style="{StaticResource S.Chip}" Margin="8,0,0,0"
+                                                                    Background="#2EF87171"
+                                                                    Visibility="{Binding StatusTag, Converter={StaticResource NotNullToVis}}">
+                                                                <TextBlock Text="{Binding StatusTag}" Foreground="#F87171" FontSize="10.5" FontWeight="Bold" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                                                   TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                                    </StackPanel>
+
+                                                    <TextBlock Grid.Column="2" Text="{Binding DownText}" VerticalAlignment="Center"
+                                                               Foreground="#38BDF8" FontSize="13" />
+                                                    <TextBlock Grid.Column="3" Text="{Binding UpText}" VerticalAlignment="Center"
+                                                               Foreground="#818CF8" FontSize="13" />
+                                                    <TextBlock Grid.Column="4" Text="{Binding TotalDownText}" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource B.Text}" FontSize="13" />
+                                                    <TextBlock Grid.Column="5" Text="{Binding TotalUpText}" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource B.Text}" FontSize="13" />
+                                                    <TextBlock Grid.Column="6" Text="{Binding Connections}" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource B.Text2}" FontSize="13" />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+
+                        <TextBlock Text="{Binding Lang[pa_no_data]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding TotalCount, Converter={StaticResource ZeroToVis}}" />
+                        <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         7) Net Limiter
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:NetLimiterViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[net_limiter]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[nl_current_processes]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[nl_add_rule]}" Style="{StaticResource T.Section}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[nl_app_path]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding Apps}"
+                                          SelectedItem="{Binding SelectedApp}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Display}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="12,0,0,0">
+                                <TextBlock Text=" " Style="{StaticResource T.Label}" />
+                                <Button Style="{StaticResource S.Btn.Ghost}" Content="{Binding Lang[nl_browse]}"
+                                        Command="{Binding BrowseCommand}" Margin="0,22,0,0" />
+                                <Button Style="{StaticResource S.Btn.Ghost}" Margin="8,22,0,0"
+                                        Content="{Binding Lang[refresh]}" Command="{Binding RefreshAppsCommand}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <UniformGrid Columns="3" Margin="0,14,0,0">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[nl_mode]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding ModeOptions}"
+                                          SelectedIndex="{Binding ModeIndex}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[nl_down_limit]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding PresetOptions}"
+                                          SelectedItem="{Binding SelectedDownPreset}" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[nl_up_limit]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding PresetOptions}"
+                                          SelectedItem="{Binding SelectedUpPreset}" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <UniformGrid Columns="2" Margin="0,12,0,0"
+                                     Visibility="{Binding DownIsCustom, Converter={StaticResource BoolToVis}}">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[custom]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding CustomDown, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Visibility="{Binding UpIsCustom, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding Lang[custom]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding CustomUp, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[nl_add_rule]}"
+                                    Command="{Binding AddCommand}" MinWidth="150" />
+                            <Border Style="{StaticResource S.Chip}" Margin="14,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ModeDescription}" Foreground="{StaticResource B.Accent}"
+                                           FontSize="11.5" FontWeight="SemiBold" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[nl_rules]}" Style="{StaticResource T.Section}" />
+                        <ListBox ItemsSource="{Binding Rules}" ItemContainerStyle="{StaticResource S.Row}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="130" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Border Width="30" Height="30" CornerRadius="10" Background="#16FFFFFF"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                       FontSize="14" Foreground="{Binding AccentBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="12,0">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="13.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding Path}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <Border Grid.Column="2" Style="{StaticResource S.Chip}" VerticalAlignment="Center"
+                                                HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding ModeText}" Foreground="{Binding AccentBrush}"
+                                                       FontSize="11.5" FontWeight="Bold" />
+                                        </Border>
+
+                                        <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[nl_down_limit], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="10.5" />
+                                            <TextBlock Text="{Binding DownText}" Foreground="{StaticResource B.Text}" FontSize="13" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="4" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[nl_up_limit], Source={x:Static lang:Lang.Instance}}"
+                                                       Style="{StaticResource T.Muted}" FontSize="10.5" />
+                                            <TextBlock Text="{Binding UpText}" Foreground="{StaticResource B.Text}" FontSize="13" />
+                                        </StackPanel>
+
+                                        <Button Grid.Column="5" Style="{StaticResource S.Btn.Danger}"
+                                                Content="{Binding Path=[remove], Source={x:Static lang:Lang.Instance}}"
+                                                Padding="12,6" FontSize="12"
+                                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="{Binding Lang[nl_no_rules]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         8) Scheduled Limits
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:SchedulesViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[scheduled_limits]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[sc_example_hint]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[sc_add]}" Style="{StaticResource T.Section}" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[pa_app]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding Apps}"
+                                          SelectedItem="{Binding SelectedApp}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Display}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <Button Grid.Column="1" Style="{StaticResource S.Btn.Ghost}"
+                                    Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}"
+                                    Margin="12,22,0,0" />
+                        </Grid>
+
+                        <UniformGrid Columns="4" Margin="0,14,0,0">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[sc_start]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding StartText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[sc_end]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}" Text="{Binding EndText, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[nl_down_limit]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding PresetOptions}"
+                                          SelectedItem="{Binding LimitPreset}" IsEnabled="{Binding BlockInstead, Converter={StaticResource InvBool}}" />
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[nl_block]}" Style="{StaticResource T.Label}" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <ToggleButton Style="{StaticResource S.Toggle}" IsChecked="{Binding BlockInstead}" />
+                                    <TextBlock Text="{Binding Lang[nl_block]}" Style="{StaticResource T.Muted}"
+                                               Margin="10,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                            <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[sc_add]}"
+                                    Command="{Binding AddCommand}" MinWidth="160" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[sc_daily]}" Style="{StaticResource T.Section}" />
+                        <ListBox ItemsSource="{Binding Items}" ItemContainerStyle="{StaticResource S.Row}"
+                                 Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="150" />
+                                            <ColumnDefinition Width="200" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Ellipse Width="9" Height="9" Fill="{Binding DotBrush}" VerticalAlignment="Center" />
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                                            <TextBlock Text="{Binding AppName}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="13.5" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding AppPath}" FontSize="11" Foreground="{StaticResource B.Text2}"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="2" Text="{Binding RangeText}" VerticalAlignment="Center"
+                                                   Style="{StaticResource T.Mono}" FontSize="12.5" />
+
+                                        <TextBlock Grid.Column="3" Text="{Binding LimitText}" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource B.Accent}" FontSize="12.5" />
+
+                                        <ToggleButton Grid.Column="4" Style="{StaticResource S.Toggle}"
+                                                      Margin="12,0,12,0" VerticalAlignment="Center"
+                                                      IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                                      Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                      CommandParameter="{Binding}" />
+
+                                        <Button Grid.Column="5" Style="{StaticResource S.Btn.Danger}"
+                                                Content="{Binding Path=[delete], Source={x:Static lang:Lang.Instance}}"
+                                                Padding="12,6" FontSize="12"
+                                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                CommandParameter="{Binding}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="{Binding Lang[sc_no_schedules]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         9) Network History (usage)
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:UsageHistoryViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[network_history]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding RangeLabel}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Style="{StaticResource S.SegBtn}" Content="{Binding Lang[nh_range_7]}"
+                                Command="{Binding SetRange7Command}" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[nh_range_30]}"
+                                Command="{Binding SetRange30Command}" />
+                        <Button Style="{StaticResource S.SegBtn}" Margin="8,0,0,0" Content="{Binding Lang[nh_range_90]}"
+                                Command="{Binding SetRange90Command}" />
+                        <Button Style="{StaticResource S.Btn.Ghost}" Margin="14,0,0,0"
+                                Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <UniformGrid Columns="4">
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nh_total_usage]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding TotalText}" Style="{StaticResource T.Value}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[download]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding DownText}" Style="{StaticResource T.Value}" Margin="0,6,0,0" Foreground="#38BDF8" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[upload]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding UpText}" Style="{StaticResource T.Value}" Margin="0,6,0,0" Foreground="#818CF8" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource S.Card}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nh_today]}" Style="{StaticResource T.Muted}" />
+                            <TextBlock Text="{Binding TodayText}" Style="{StaticResource T.Value}" Margin="0,6,0,0" />
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[nh_chart_usage]}" Style="{StaticResource T.Section}" />
+                        <ctl:ColumnChart Items="{Binding ChartItems}" Height="250" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Lang[nh_no_data]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding ChartItems.Count, Converter={StaticResource ZeroToVis}}" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nh_avg]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding AvgText}" Style="{StaticResource T.H2}" Margin="0,2,0,0" />
+                            <Border Style="{StaticResource S.Separator}" />
+                            <TextBlock Text="{Binding Lang[nh_peak]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding PeakText}" Style="{StaticResource T.H2}" Margin="0,2,0,0" />
+                            <Border Style="{StaticResource S.Separator}" />
+                            <TextBlock Text="{Binding Lang[nh_top_app]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding TopAppText}" Style="{StaticResource T.H2}" Margin="0,2,0,0"
+                                       TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource S.Card}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nh_top_apps]}" Style="{StaticResource T.Section}" />
+                            <ItemsControl ItemsSource="{Binding TopApps}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,0,0,10">
+                                            <Grid>
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                           FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding TotalText}" HorizontalAlignment="Right"
+                                                           Foreground="{StaticResource B.Text2}" FontSize="12" />
+                                            </Grid>
+                                            <Border Background="{StaticResource B.SurfaceAlt}" CornerRadius="4"
+                                                    Height="7" Margin="0,5,0,0">
+                                                <!-- Share is already 0..1, so ScaleX can bind straight to it.
+                                                     The bar stretches to the track width and is scaled from the left. -->
+                                                <Border CornerRadius="4"
+                                                        Background="{Binding BarBrush}" Height="7"
+                                                        RenderTransformOrigin="0,0">
+                                                    <Border.RenderTransform>
+                                                        <ScaleTransform ScaleX="{Binding Share}" />
+                                                    </Border.RenderTransform>
+                                                </Border>
+                                            </Border>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         10) Connection History (events)
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:ConnectionHistoryViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[connection_history]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[ch_event]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <TextBlock Text="{Binding Lang[ch_filter]}" Style="{StaticResource T.Muted}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <ComboBox Style="{StaticResource S.ComboBox}" Width="190"
+                                  ItemsSource="{Binding FilterOptions}"
+                                  SelectedValuePath="Key" SelectedValue="{Binding Filter}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" />
+                        <Button Style="{StaticResource S.Btn.Danger}" Margin="10,0,0,0"
+                                Content="{Binding Lang[ch_clear_all]}" Command="{Binding ClearCommand}" />
+                    </StackPanel>
+                </DockPanel>
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <ListBox ItemsSource="{Binding Items}" Background="Transparent" BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource S.ListRow}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="40" />
+                                                <ColumnDefinition Width="170" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Width="30" Height="30" CornerRadius="10" Background="#16FFFFFF"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                           FontSize="14" Foreground="{Binding AccentBrush}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+
+                                            <TextBlock Grid.Column="1" Text="{Binding TimeText}" VerticalAlignment="Center"
+                                                       FontSize="11.5" FontFamily="Cascadia Mono, Consolas"
+                                                       Foreground="{StaticResource B.Text2}" />
+
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="14,0,0,0">
+                                                <TextBlock Text="{Binding LocalTitle}" Foreground="{StaticResource B.Text}"
+                                                           FontSize="13.5" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding Detail}" FontSize="11.5"
+                                                           Foreground="{StaticResource B.Text2}" Margin="0,2,0,0"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock Text="{Binding Lang[ch_no_events]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVis}}" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         11) Network Tools
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:ToolsViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[network_tools]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[nt_output]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Ghost}"
+                            Content="{Binding Lang[nt_clear]}" Command="{Binding ClearCommand}" />
+                </DockPanel>
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[nt_run]}" Style="{StaticResource T.Section}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[nt_flush_dns]}"
+                                    Command="{Binding FlushCommand}" IsEnabled="{Binding NotBusy}" MinWidth="150" />
+                            <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                    Content="{Binding Lang[nt_renew_ip]}" Command="{Binding RenewCommand}"
+                                    IsEnabled="{Binding NotBusy}" />
+                            <Button Style="{StaticResource S.Btn.Danger}" Margin="10,0,0,0"
+                                    Content="{Binding Lang[nt_reset_network]}" Command="{Binding ResetCommand}"
+                                    IsEnabled="{Binding NotBusy}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Lang[nt_reboot_note]}" Style="{StaticResource T.Muted}"
+                                   Margin="0,10,0,0" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Grid Margin="0,14,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                        <ColumnDefinition />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nt_ping]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding Lang[nt_target]}" Style="{StaticResource T.Label}" />
+                            <TextBox Style="{StaticResource S.Input}" Text="{Binding PingTarget, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Style="{StaticResource S.Btn.Primary}" Margin="0,12,0,0"
+                                    Content="{Binding Lang[nt_run]}" Command="{Binding PingCommand}"
+                                    IsEnabled="{Binding NotBusy}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nt_traceroute]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding Lang[nt_target]}" Style="{StaticResource T.Label}" />
+                            <TextBox Style="{StaticResource S.Input}" Text="{Binding TraceTarget, UpdateSourceTrigger=PropertyChanged}" />
+                            <Button Style="{StaticResource S.Btn.Primary}" Margin="0,12,0,0"
+                                    Content="{Binding Lang[nt_run]}" Command="{Binding TraceCommand}"
+                                    IsEnabled="{Binding NotBusy}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[nt_nslookup]}" Style="{StaticResource T.Section}" />
+                            <TextBlock Text="{Binding Lang[nt_target]}" Style="{StaticResource T.Label}" />
+                            <TextBox Style="{StaticResource S.Input}" Text="{Binding LookupDomain, UpdateSourceTrigger=PropertyChanged}" />
+                            <UniformGrid Columns="2" Margin="0,10,0,0">
+                                <StackPanel Margin="0,0,6,0">
+                                    <TextBlock Text="{Binding Lang[nt_dns_server]}" Style="{StaticResource T.Label}" />
+                                    <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding DnsServers}"
+                                              SelectedItem="{Binding LookupServer}" />
+                                </StackPanel>
+                                <StackPanel Margin="6,0,0,0">
+                                    <TextBlock Text="{Binding Lang[nt_record_type]}" Style="{StaticResource T.Label}" />
+                                    <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding RecordTypes}"
+                                              SelectedItem="{Binding RecordType}" />
+                                </StackPanel>
+                            </UniformGrid>
+                            <Button Style="{StaticResource S.Btn.Primary}" Margin="0,12,0,0"
+                                    Content="{Binding Lang[nt_run]}" Command="{Binding LookupCommand}"
+                                    IsEnabled="{Binding NotBusy}" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,10" LastChildFill="False">
+                            <TextBlock Text="{Binding Lang[nt_output]}" Style="{StaticResource T.Section}" DockPanel.Dock="Left" />
+                            <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}"
+                                    Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}">
+                                <TextBlock Text="{Binding Lang[nt_running]}" Foreground="{StaticResource B.Accent}"
+                                           FontSize="11.5" FontWeight="SemiBold" />
+                            </Border>
+                        </DockPanel>
+                        <TextBox Style="{StaticResource S.Multiline}" Height="270"
+                                 Text="{Binding Output, Mode=TwoWay}" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         12) Network Adapters
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:AdaptersViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[adapters]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[status]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Ghost}"
+                            Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" />
+                </DockPanel>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="330" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,14,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[adapters]}" Style="{StaticResource T.Section}" />
+                            <ListBox ItemsSource="{Binding Items}" SelectedItem="{Binding Selected}"
+                                     ItemContainerStyle="{StaticResource S.Row}"
+                                     Background="Transparent" BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="36" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                       FontSize="16" Foreground="{StaticResource B.Accent}"
+                                                       VerticalAlignment="Center" />
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                           FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding KindLabel}" FontSize="11"
+                                                           Foreground="{StaticResource B.Text2}" Margin="0,2,0,0" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" />
+                                                <TextBlock Text="{Binding StatusText}" FontSize="11"
+                                                           Foreground="{StaticResource B.Text2}" Margin="7,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Text="{Binding Lang[ad_no_adapters]}" Style="{StaticResource T.Hint}"
+                                       Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVis}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Column="1" Style="{StaticResource S.Card}">
+                        <StackPanel DataContext="{Binding Selected}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource T.H2}" />
+                                <Border Style="{StaticResource S.Chip}" Margin="12,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding StatusText}" Foreground="{Binding StatusBrush}"
+                                               FontSize="11.5" FontWeight="Bold" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding KindLabel}" Style="{StaticResource T.Muted}" Margin="0,4,0,0" />
+
+                            <Border Style="{StaticResource S.Separator}" />
+
+                            <UniformGrid Columns="2">
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="{Binding Path=[ad_ip], Source={x:Static lang:Lang.Instance}}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding Ipv4}" Style="{StaticResource T.Mono}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="{Binding Path=[ad_gateway], Source={x:Static lang:Lang.Instance}}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding Gateway}" Style="{StaticResource T.Mono}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="{Binding Path=[dns_servers_list], Source={x:Static lang:Lang.Instance}}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding Dns}" Style="{StaticResource T.Mono}" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="{Binding Path=[ad_link_speed], Source={x:Static lang:Lang.Instance}}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding LinkSpeed}" Style="{StaticResource T.Mono}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="{Binding Path=[ad_mac], Source={x:Static lang:Lang.Instance}}" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding Mac}" Style="{StaticResource T.Mono}" />
+                                </StackPanel>
+                                <StackPanel Margin="0,6,0,10">
+                                    <TextBlock Text="DHCP" Style="{StaticResource T.Label}" />
+                                    <TextBlock Text="{Binding DhcpLabel}" Style="{StaticResource T.Mono}" />
+                                </StackPanel>
+                            </UniformGrid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Style="{StaticResource S.Btn.Primary}"
+                                        Content="{Binding Path=[ad_enable], Source={x:Static lang:Lang.Instance}}"
+                                        Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}"
+                                        IsEnabled="{Binding DataContext.IsBusy, Converter={StaticResource InvBool},
+                                                            RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
+                                <Button Style="{StaticResource S.Btn.Danger}" Margin="10,0,0,0"
+                                        Content="{Binding Path=[ad_disable], Source={x:Static lang:Lang.Instance}}"
+                                        Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=ScrollViewer}}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         13) Profiles
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:ProfilesViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[profiles]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[pr_quick_note]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[pr_create]}" Style="{StaticResource T.Label}" />
+                            <TextBox Style="{StaticResource S.Input}" Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Style="{StaticResource S.Btn.Primary}"
+                                Content="{Binding Lang[pr_create]}" Command="{Binding CreateCommand}"
+                                Margin="14,22,0,0" MinWidth="150" />
+                    </Grid>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Items}" Margin="0,14,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource S.Card}" Margin="0,0,0,12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="54" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Width="44" Height="44" CornerRadius="14" Background="#1AFFFFFF"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Glyph}" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                                   FontSize="19" Foreground="{Binding ColorBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                       FontSize="15" FontWeight="SemiBold" />
+                                            <Border Style="{StaticResource S.Chip}" Margin="10,0,0,0"
+                                                    Background="#1F38BDF8"
+                                                    Visibility="{Binding IsActive, Converter={StaticResource BoolToVis}}">
+                                                <TextBlock Text="{Binding Path=[pr_active], Source={x:Static lang:Lang.Instance}}"
+                                                           Foreground="{StaticResource B.Accent}" FontSize="10.5" FontWeight="Bold" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Description}" FontSize="12"
+                                                   Foreground="{StaticResource B.Text2}" Margin="0,3,0,0" />
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Border Style="{StaticResource S.Chip}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="DNS" FontSize="11" Foreground="{StaticResource B.Accent2}" />
+                                                    <TextBlock Text="{Binding DnsName}" FontSize="11" Margin="6,0,0,0"
+                                                               Foreground="{StaticResource B.Text2}" />
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource S.Chip}" Margin="8,0,0,0">
+                                                <TextBlock Text="{Binding LimitsSummary}" FontSize="11"
+                                                           Foreground="{StaticResource B.Text2}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource S.Btn.Primary}" Padding="14,7"
+                                                Content="{Binding Path=[pr_apply], Source={x:Static lang:Lang.Instance}}"
+                                                Command="{Binding DataContext.ApplyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource S.Btn.Ghost}" Padding="14,7" Margin="8,0,0,0"
+                                                Content="{Binding Path=[copy], Source={x:Static lang:Lang.Instance}}"
+                                                Command="{Binding DataContext.DuplicateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Style="{StaticResource S.Btn.Danger}" Padding="14,7" Margin="8,0,0,0"
+                                                Content="{Binding Path=[delete], Source={x:Static lang:Lang.Instance}}"
+                                                Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="{Binding Lang[pr_no_profiles]}" Style="{StaticResource T.Hint}"
+                           Visibility="{Binding Items.Count, Converter={StaticResource ZeroToVis}}" />
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,4,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         14) Mobile VPN → PC
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:MobileVpnViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="{Binding Lang[mv_title]}" Style="{StaticResource T.H1}" />
+                        <TextBlock Text="{Binding Lang[mv_subtitle]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                    </StackPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Ghost}"
+                            Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" />
+                </DockPanel>
+
+                <!-- status tiles -->
+                <UniformGrid Columns="5">
+                    <Border Style="{StaticResource S.Card}" Padding="16,14" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mv_h_mobile]}" Style="{StaticResource T.Muted}" FontSize="11.5" />
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <Ellipse Width="9" Height="9" Fill="{Binding MobileBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding MobileText}" Foreground="{Binding MobileBrush}"
+                                           FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Padding="16,14" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mv_h_phone_vpn]}" Style="{StaticResource T.Muted}" FontSize="11.5" />
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <Ellipse Width="9" Height="9" Fill="{Binding MobileVpnBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding MobileVpnText}" Foreground="{Binding MobileVpnBrush}"
+                                           FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Padding="16,14" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mv_h_pc_vpn]}" Style="{StaticResource T.Muted}" FontSize="11.5" />
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <Ellipse Width="9" Height="9" Fill="{Binding PcVpnBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding PcVpnText}" Foreground="{Binding PcVpnBrush}"
+                                           FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Padding="16,14" Margin="0,0,12,0">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mv_h_pc]}" Style="{StaticResource T.Muted}" FontSize="11.5" />
+                            <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                                <Ellipse Width="9" Height="9" Fill="{Binding PcBrush}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding PcText}" Foreground="{Binding PcBrush}"
+                                           FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource S.Card}" Padding="16,14">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Lang[mv_h_traffic]}" Style="{StaticResource T.Muted}" FontSize="11.5" />
+                            <TextBlock Text="{Binding TrafficText}" Style="{StaticResource T.Mono}"
+                                       FontSize="13" Foreground="{StaticResource B.Text}" Margin="0,7,0,0" />
+                            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                <TextBlock Text="{Binding Lang[mv_peers]}" FontSize="11"
+                                           Foreground="{StaticResource B.Text2}" />
+                                <TextBlock Text="{Binding PeerText}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource B.Accent}" Margin="5,0,0,0" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
+                <Grid Margin="0,16,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="372" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- transfer method + links -->
+                    <Border Style="{StaticResource S.Card}" Margin="0,0,14,0">
+                        <StackPanel>
+                            <DockPanel LastChildFill="False" Margin="0,0,0,4">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_links_card]}"
+                                           Style="{StaticResource T.Section}" />
+                                <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}">
+                                    <TextBlock Text="{Binding SharingText}" FontSize="11.5" FontWeight="SemiBold"
+                                               Foreground="{Binding SharingBrush}" />
+                                </Border>
+                            </DockPanel>
+
+                            <TextBlock Text="{Binding Lang[mv_method]}" Style="{StaticResource T.Label}" Margin="0,10,0,6" />
+                            <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding MethodOptions}"
+                                      SelectedItem="{Binding SelectedMethod}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Label}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+
+                            <TextBlock Text="{Binding Lang[mv_links]}" Style="{StaticResource T.Label}" Margin="0,14,0,6" />
+                            <ListBox ItemsSource="{Binding Links}" SelectedItem="{Binding SelectedLink}"
+                                     ItemContainerStyle="{StaticResource S.Row}"
+                                     Background="Transparent" BorderThickness="0"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     MaxHeight="216">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Ellipse Width="8" Height="8" Fill="{Binding KindBrush}"
+                                                             VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                               FontSize="13.5" FontWeight="SemiBold" Margin="8,0,0,0"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock FontSize="11" Foreground="{StaticResource B.Text2}"
+                                                           Margin="16,3,0,0" TextTrimming="CharacterEllipsis">
+                                                    <Run Text="{Binding KindLabel, Mode=OneWay}" />
+                                                    <Run Text=" · " />
+                                                    <Run Text="{Binding Ipv4, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="{Binding StatusBrush}" />
+                                                <TextBlock Text="{Binding StatusText}" FontSize="11"
+                                                           Foreground="{StaticResource B.Text2}" Margin="7,0,0,0"
+                                                           VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                            <TextBlock Text="{Binding Lang[mv_no_links]}" Style="{StaticResource T.Hint}"
+                                       Visibility="{Binding Links.Count, Converter={StaticResource ZeroToVis}}" />
+
+                            <Border Style="{StaticResource S.Separator}" Margin="0,12,0,0" />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                <Button Style="{StaticResource S.Btn.Primary}" Content="{Binding Lang[mv_share]}"
+                                        Command="{Binding ShareCommand}" />
+                                <Button Style="{StaticResource S.Btn.Danger}" Margin="10,0,0,0"
+                                        Content="{Binding Lang[mv_stop_share]}" Command="{Binding StopCommand}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- guard + backup + android bridge -->
+                    <StackPanel Grid.Column="1">
+
+                        <Border Style="{StaticResource S.Card}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[mv_guard_title]}" Style="{StaticResource T.Section}" />
+                                <DockPanel LastChildFill="False" Margin="0,8,0,0">
+                                    <StackPanel DockPanel.Dock="Left" MaxWidth="248" Margin="0,0,14,0">
+                                        <TextBlock Text="{Binding Lang[mv_guard_confirm]}"
+                                                   Foreground="{StaticResource B.Text}" FontSize="13"
+                                                   FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Lang[mv_guard_body]}" Style="{StaticResource T.Muted}"
+                                                   Margin="0,4,0,0" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <ToggleButton DockPanel.Dock="Right" Style="{StaticResource S.Toggle}"
+                                                  IsChecked="{Binding ConfirmVpnChange}" VerticalAlignment="Top" />
+                                </DockPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[mv_backup_card]}" Style="{StaticResource T.Section}" />
+                                <TextBlock Text="{Binding Lang[mv_backup_hint]}" Style="{StaticResource T.Muted}"
+                                           Margin="0,6,0,0" TextWrapping="Wrap" />
+                                <DockPanel Margin="0,10,0,0">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_snapshot_at]}"
+                                               Style="{StaticResource T.Muted}" />
+                                    <TextBlock Text="{Binding SnapshotText}" Style="{StaticResource T.Mono}"
+                                               Foreground="{StaticResource B.Text}" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding Lang[mv_snapshot_none]}" Style="{StaticResource T.Hint}"
+                                           Visibility="{Binding HasSnapshot, Converter={StaticResource InvBoolToVis}}" />
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Style="{StaticResource S.Btn.AccentSoft}" Content="{Binding Lang[mv_capture]}"
+                                            Command="{Binding CaptureCommand}" />
+                                    <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                            Content="{Binding Lang[mv_restore]}" Command="{Binding RestoreCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_api_title]}"
+                                               Style="{StaticResource T.Section}" />
+                                    <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}">
+                                        <TextBlock Text="{Binding ApiStateText}" FontSize="11.5" FontWeight="SemiBold"
+                                                   Foreground="{Binding PairedBrush}" />
+                                    </Border>
+                                </DockPanel>
+
+                                <UniformGrid Columns="2" Margin="0,10,0,0">
+                                    <StackPanel Margin="0,0,12,0">
+                                        <TextBlock Text="{Binding Lang[mv_api_address]}" Style="{StaticResource T.Label}" />
+                                        <TextBlock Text="{Binding ApiAddress}" Style="{StaticResource T.Mono}" />
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Lang[mv_pairing]}" Style="{StaticResource T.Label}" />
+                                        <TextBlock Text="{Binding PairingCode}" Style="{StaticResource T.Mono}"
+                                                   FontSize="15" FontWeight="Bold" Foreground="{StaticResource B.Accent}" />
+                                    </StackPanel>
+                                </UniformGrid>
+
+                                <TextBlock Text="{Binding Lang[mv_api_hint]}" Style="{StaticResource T.Hint}"
+                                           Margin="0,10,0,0" TextWrapping="Wrap" />
+
+                                <Border Style="{StaticResource S.Separator}" Margin="0,12,0,0" />
+
+                                <DockPanel Margin="0,4,0,0">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_device]}"
+                                               Style="{StaticResource T.Muted}" />
+                                    <TextBlock Text="{Binding DeviceText}" Foreground="{StaticResource B.Text}"
+                                               FontSize="12" />
+                                </DockPanel>
+                                <DockPanel Margin="0,4,0,0">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_paired]}"
+                                               Style="{StaticResource T.Muted}" />
+                                    <TextBlock Text="{Binding PairedText}" Foreground="{Binding PairedBrush}"
+                                               FontSize="12" FontWeight="SemiBold" />
+                                </DockPanel>
+                                <DockPanel Margin="0,4,0,0">
+                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_mobile_report]}"
+                                               Style="{StaticResource T.Muted}" />
+                                    <TextBlock Text="{Binding PhoneReport}" Foreground="{StaticResource B.Text}"
+                                               FontSize="12" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                    <Button Style="{StaticResource S.Btn.Ghost}" Content="{Binding ApiToggleText}"
+                                            Command="{Binding ToggleApiCommand}" />
+                                    <Button Style="{StaticResource S.Btn.Ghost}" Margin="10,0,0,0"
+                                            Content="{Binding Lang[mv_new_code]}" Command="{Binding NewCodeCommand}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+    <!-- ==================================================================
+         15) Settings
+         ================================================================== -->
+    <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+            <StackPanel Margin="30,26,30,34">
+
+                <TextBlock Text="{Binding Lang[settings]}" Style="{StaticResource T.H1}" />
+                <TextBlock Text="{Binding Lang[st_saved]}" Style="{StaticResource T.Muted}" Margin="0,6,0,18" />
+
+                <Border Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[language]}" Style="{StaticResource T.Section}" />
+                        <UniformGrid Columns="2">
+                            <StackPanel Margin="0,0,12,0">
+                                <TextBlock Text="{Binding Lang[st_language]}" Style="{StaticResource T.Label}" />
+                                <ComboBox Style="{StaticResource S.ComboBox}" ItemsSource="{Binding LanguageOptions}"
+                                          SelectedIndex="{Binding LanguageIndex}">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Label}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="{Binding Lang[mon_target]}" Style="{StaticResource T.Label}" />
+                                <TextBox Style="{StaticResource S.Input}"
+                                         Text="{Binding MonitorTarget, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </UniformGrid>
+
+                        <Border Style="{StaticResource S.Separator}" />
+
+                        <DockPanel LastChildFill="False">
+                            <StackPanel DockPanel.Dock="Left">
+                                <TextBlock Text="{Binding Lang[st_minimize_to_tray]}" Foreground="{StaticResource B.Text}"
+                                           FontSize="13.5" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Lang[st_tray_hint]}" Style="{StaticResource T.Muted}" Margin="0,3,0,0" />
+                            </StackPanel>
+                            <ToggleButton DockPanel.Dock="Right" Style="{StaticResource S.Toggle}"
+                                          IsChecked="{Binding MinimizeToTray}" VerticalAlignment="Center" />
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,14,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[st_about]}" Style="{StaticResource T.Section}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="42" Height="42" CornerRadius="13" Background="{StaticResource B.AccentGrad}">
+                                <TextBlock Text="&#xE968;" FontFamily="Segoe MDL2 Assets, Segoe Fluent Icons"
+                                           FontSize="20" Foreground="White"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Lang[app_title]}" Foreground="{StaticResource B.Text}"
+                                           FontSize="15" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding VersionText}" Style="{StaticResource T.Muted}" Margin="0,2,0,0" />
+                                <!-- Creator line: label localized, the name itself never translated. -->
+                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                    <TextBlock Text="{Binding Lang[st_creator]}" Style="{StaticResource T.Muted}" />
+                                    <TextBlock Text="esi" Style="{StaticResource T.Muted}" FontWeight="SemiBold"
+                                               Foreground="{StaticResource B.Accent}" Margin="6,0,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Text="{Binding StatusMessage}" Style="{StaticResource T.Muted}" Margin="0,12,0,0" />
+
+            </StackPanel>
+        </ScrollViewer>
+    </DataTemplate>
+
+</ResourceDictionary>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- NetPilot mark: a compass needle / pilot arrow inside a signal ring. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:scaleX="1.0" android:scaleY="1.0">
+        <!-- outer ring -->
+        <path
+            android:pathData="M54,26 A28,28 0 1 0 54.01,26 Z"
+            android:strokeColor="#38BDF8"
+            android:strokeWidth="4"
+            android:fillColor="#00000000" />
+        <!-- needle -->
+        <path
+            android:pathData="M42,66 L54,34 L66,66 L54,58 Z"
+            android:fillColor="#38BDF8" />
+        <path
+            android:pathData="M42,66 L54,58 L66,66 L54,72 Z"
+            android:fillColor="#2A8FD6" />
+        <!-- center dot -->
+        <path
+            android:pathData="M54,54 m-5,0 a5,5 0 1 0 10,0 a5,5 0 1 0 -10,0"
+            android:fillColor="#E6EAF2" />
+    </group>
+</vector>

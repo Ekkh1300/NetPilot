@@ -1,0 +1,17 @@
+﻿install exit=0
+install: exe=True
+install: files=465
+install: uninstall.dat=True
+install: reg=OK publisher=esi ver=1.2.0
+install: regUninstall="E:\op dn\NetPilot\dist\NetPilot-Setup.exe" /UNINSTALL
+install: startmenu.lnk=True
+install: desktop.lnk=True
+run: alive=True title='NetPilot'
+run: crashlog grew=0
+uninstall exit=0
+uninstall: exe gone=True
+uninstall: files left=0
+uninstall: dir exists=False
+uninstall: startmenu.lnk gone=True
+uninstall: desktop.lnk gone=True
+uninstall: regKey gone=True

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NetPilot</string>
+    <string name="vpn_channel_name">Network tunnel</string>
+    <string name="vpn_channel_desc">Applies DNS, per-app limits and traffic accounting</string>
+    <string name="monitor_channel_name">Live monitor</string>
+    <string name="monitor_channel_desc">Keeps network statistics updating in the background</string>
+</resources>

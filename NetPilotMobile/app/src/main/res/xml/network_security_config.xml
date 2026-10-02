@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Cleartext is permitted for two reasons that are specific to this app:
+
+    1. the Mobile VPN bridge talks to the paired PC over plain HTTP on the LAN
+       (default http://<pc>:8787), and the PC's address is only known at runtime, so it
+       cannot be pinned in a <domain-config>;
+    2. the LAN proxy hands out plain HTTP to the apps behind it.
+
+  Everything else — trust, certificate validation — stays with the platform: this file
+  only opens the cleartext gate, it never trusts user-installed CAs or disables
+  certificate checks.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

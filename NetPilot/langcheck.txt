@@ -1,0 +1,8 @@
+original=fa
+flipped=en
+oldWord=تنظیمات
+newWord=Settings
+beforeHasOld=1
+afterHasOld=0
+afterHasNew=1
+ok=1

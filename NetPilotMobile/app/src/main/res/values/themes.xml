@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Framework-only theme (no AppCompat dependency): Compose draws everything. -->
+    <style name="Theme.NetPilot" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/np_bg</item>
+        <item name="android:statusBarColor">@color/np_bg</item>
+        <item name="android:navigationBarColor">@color/np_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

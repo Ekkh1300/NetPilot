@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>NetPilot</AssemblyName>
+    <RootNamespace>NetPilot</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Without this the exe carries no icon resource at all: Explorer, the taskbar, Alt-Tab
+         and the installer's Start-menu shortcut all fall back to a blank default one.
+         Regenerate with Tools\MakeIcon.ps1. -->
+    <ApplicationIcon>Assets\NetPilot.ico</ApplicationIcon>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <AssemblyTitle>NetPilot</AssemblyTitle>
+    <Product>NetPilot</Product>
+    <Company>NetPilot</Company>
+    <Version>1.2.0</Version>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CA1416;SYSLIB0014</NoWarn>
+  </PropertyGroup>
+
+  <!-- UseWindowsForms injects global usings for System.Drawing / System.Windows.Forms which
+       collide with WPF (Brush, Color, Point, Pen, Timer, Application, ...). Remove them and
+       declare them explicitly only in the files that need WinForms (TrayService). -->
+  <ItemGroup>
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <!-- The unit tests drive the internals that a black-box run cannot reach: the proxy
+       probe (it must try every resolved address), the PowerShell transcript counters, and
+       the firewall step (it must never block the thread that started the bridge). -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="NetPilot.Tests" />
+  </ItemGroup>
+
+  <!-- installer\Setup.cs is a separate program (compiled by installer\build.ps1 with the
+       in-box C# compiler) - keep it out of the application's compile set. -->
+  <ItemGroup>
+    <Compile Remove="installer\**" />
+    <EmbeddedResource Remove="installer\**" />
+    <None Remove="installer\**" />
+    <None Remove="dist\**" />
+  </ItemGroup>
+
+</Project>

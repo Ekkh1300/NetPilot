@@ -1,0 +1,56 @@
+# ---------------------------------------------------------------- Android / Gradle
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+release/
+
+# Signing material. The keystore and its passwords must never reach a public repository:
+# whoever holds them can ship an update that phones install as if it came from us.
+*.jks
+*.keystore
+keystore.properties
+
+# ---------------------------------------------------------------- .NET / Windows
+bin/
+obj/
+*.user
+*.suo
+.vs/
+App_Data/
+
+# The installer payload is a 67 MB binary; publish it as a GitHub Release asset instead.
+dist/
+payload.zip
+
+# ---------------------------------------------------------------- build artefacts & scratch
+*.apk.*.idsig
+selftest*.txt
+pending-share.flag
+st-*.png
+np-*.png
+live*.png
+ui*.png
+full.png
+dbg-click.png
+*.log
+!docs/**/*.log
+capture*.ps1
+debug.ps1
+elev_*.ps1
+
+# Release bundles and Play assets built by hand are generated, not sources.
+release/
+
+# ---------------------------------------------------------------- OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------- editors
+.idea/
+.vscode/
+*.swp

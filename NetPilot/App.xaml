@@ -1,0 +1,26 @@
+<Application x:Class="NetPilot.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:NetPilot.Core"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Shared converter instances. Declared BEFORE the merged dictionaries so that
+                 Pages.xaml / Controls.xaml can reach them with StaticResource. -->
+            <BooleanToVisibilityConverter x:Key="BoolToVis" />
+            <core:InverseBoolConverter x:Key="InvBool" />
+            <core:NullToVisibilityConverter x:Key="NullToVis" />
+            <core:NullToVisibilityConverter x:Key="NotNullToVis" Invert="True" />
+            <core:SpeedFormatConverter x:Key="SpeedFmt" />
+            <core:ProgressFractionConverter x:Key="ProgressFrac" />
+            <core:ZeroToVisibilityConverter x:Key="ZeroToVis" />
+            <core:ZeroToVisibilityConverter x:Key="NonZeroToVis" Invert="True" />
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Themes/Dark.xaml" />
+                <ResourceDictionary Source="Themes/Controls.xaml" />
+                <ResourceDictionary Source="Views/Pages.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
