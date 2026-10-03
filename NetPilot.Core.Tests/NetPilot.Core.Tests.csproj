@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests for NetPilot.Core only, with no reference to the WPF app.
+
+    That separation is the whole reason this project exists. The shared logic - the link
+    classifier, the shaper, the wire contract - is supposed to behave identically on Windows,
+    Linux and macOS. Testing it from NetPilot.Tests meant it could only ever be tested on
+    Windows, which is how the Linux and macOS interface names shipped broken.
+
+    net8.0, no PlatformTarget: this must build and run on all three.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>NetPilot.Core.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetPilot.Core\NetPilot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

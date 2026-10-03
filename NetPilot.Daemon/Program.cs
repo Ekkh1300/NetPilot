@@ -264,9 +264,26 @@ internal sealed class Bridge
         }
     }
 
+    /// <summary>
+    /// One serializer configuration for the whole bridge.
+    ///
+    /// <c>IncludeFields</c> is not optional here: <c>MvLink</c> and <c>MvResult</c> are
+    /// declared with public <i>fields</i>, not properties, and the default serializer silently
+    /// drops every one of them. The bridge answered <c>/status</c> with an array of empty
+    /// objects. Compiling it looked fine, starting it looked fine, and only asking it a
+    /// question on a real machine showed it.
+    /// </summary>
+    private static readonly System.Text.Json.JsonSerializerOptions JsonOptions =
+        new()
+        {
+            IncludeFields = true,
+            PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase,
+        };
+
     private static async Task Json(HttpListenerResponse res, int status, object payload)
     {
-        var bytes = Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(payload));
+        var bytes = Encoding.UTF8.GetBytes(
+            System.Text.Json.JsonSerializer.Serialize(payload, JsonOptions));
         res.StatusCode = status;
         res.ContentType = "application/json; charset=utf-8";
         res.ContentLength64 = bytes.Length;

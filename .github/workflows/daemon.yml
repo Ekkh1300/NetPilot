@@ -30,14 +30,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: build the shared core
-        run: dotnet build NetPilot.Core/NetPilot.Core.csproj -v q
-
-      # The classifier and the token bucket are the parts that must behave identically on
-      # every platform, so they are tested on every platform rather than only on Windows.
-      - name: test the shared logic here, not just on Windows
-        run: dotnet test NetPilot.Tests/NetPilot.Tests.csproj --nologo \
-             --filter 'FullyQualifiedName~CrossPlatformLinkClassifierTests|FullyQualifiedName~TokenBucketTests'
+      # NetPilot.Core.Tests, not NetPilot.Tests: the latter references the WPF app, so it
+      # cannot build here at all. The suites below are exactly the ones that must behave the
+      # same on every platform, which is why they are run on every platform.
+      - name: the shared logic, tested here and not only on Windows
+        run: dotnet test NetPilot.Core.Tests/NetPilot.Core.Tests.csproj --nologo
 
   # ---------------------------------------------------------------- linux
   linux:
