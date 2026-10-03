@@ -1,5 +1,5 @@
-  macos daemon, real kernel                   success
-  shared logic on ubuntu-24.04                success
   shared logic on macos-14                    success
   linux daemon, real kernel                   failure
       FAILED: a blocked uid is really blocked
+  shared logic on ubuntu-24.04                success
+  macos daemon, real kernel                   success

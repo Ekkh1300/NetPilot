@@ -1,31 +1,5 @@
-∩╗┐2026-10-03T11:01:29.8558695Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --block)
-2026-10-03T11:01:29.8559050Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --block)^[[0m
-2026-10-03T11:01:29.8559290Z ^[[36;1mecho "$OUT"^[[0m
-2026-10-03T11:01:29.8559598Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
-2026-10-03T11:01:29.8559991Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
-2026-10-03T11:01:29.8560316Z ^[[36;1m  echo "FAIL: the rule exists but traffic still flows"; exit 1; }^[[0m
-2026-10-03T11:01:29.8593272Z shell: /usr/bin/bash -e {0}
-2026-10-03T11:01:29.8593569Z env:
-2026-10-03T11:01:29.8593798Z   DOTNET_ROOT: /usr/share/dotnet
-2026-10-03T11:01:29.8594030Z ##[endgroup]
-2026-10-03T11:01:31.5607821Z BLOCK_RULE_PRESENT=yes
-2026-10-03T11:01:31.5608745Z this machine has no outbound network, so a block cannot be distinguished from a
-2026-10-03T11:01:31.5609370Z dead connection - reporting unknown rather than a pass
-2026-10-03T11:01:31.5609860Z BLOCK_IS_EFFECTIVE=unknown
-2026-10-03T11:01:31.5629314Z FAIL: the rule exists but traffic still flows
-2026-10-03T11:01:31.5640558Z ##[error]Process completed with exit code 1.
-∩╗┐2026-10-03T11:01:31.5758497Z Post job cleanup.
-2026-10-03T11:01:31.6382960Z [command]/usr/bin/git version
-2026-10-03T11:01:31.6416179Z git version 2.55.0
-2026-10-03T11:01:31.6453049Z Temporarily overriding HOME='/home/runner/work/_temp/9bd2b0f3-de75-4bf2-9fc6-e1b2e349f528' before making global git config changes
-2026-10-03T11:01:31.6453817Z Adding repository directory to the temporary git global config as a safe directory
-2026-10-03T11:01:31.6458043Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NetPilot/NetPilot
-2026-10-03T11:01:31.6485478Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
-2026-10-03T11:01:31.6518833Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
-2026-10-03T11:01:31.6719059Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
-2026-10-03T11:01:31.6735078Z http.https://github.com/.extraheader
-2026-10-03T11:01:31.6742798Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
-2026-10-03T11:01:31.6769197Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
-2026-10-03T11:01:31.6975284Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
-2026-10-03T11:01:31.7014645Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
-∩╗┐2026-10-03T11:01:31.7293316Z Cleaning up orphan processes
+2026-10-03T11:05:40.0785385Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
+2026-10-03T11:05:40.0785980Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
+2026-10-03T11:05:41.1377142Z baseline: this uid reaches the local listener
+2026-10-03T11:05:41.1378276Z the test uid cannot reach the listener even before blocking; cannot measure
+2026-10-03T11:05:41.1379207Z BLOCK_IS_EFFECTIVE=unknown

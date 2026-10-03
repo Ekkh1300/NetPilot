@@ -133,12 +133,16 @@ case "$MODE" in
     result BLOCK_IS_EFFECTIVE unknown
     exit 0
   fi
-  say "baseline: this uid reaches the local listener"
+  say "baseline: the host reaches the local listener"
+  # The stderr is kept: a setpriv failure and a curl failure look identical from the exit
+  # code alone, and guessing between them wastes a cycle.
   if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+       curl -s --max-time 5 -o /dev/null "http://127.0.0.1:18099/" 2>"$BASE-setpriv.err"; then
     say "baseline: the test uid reaches it too"
   else
     say "the test uid cannot reach the listener even before blocking; cannot measure"
+    say "setpriv/curl said: $(head -3 "$BASE-setpriv.err" 2>/dev/null | tr '\n' ' ')"
+    say "the uid exists as: $(getent passwd $TEST_UID 2>/dev/null || echo '<no such uid>')"
     kill $LISTENER 2>/dev/null
     result BLOCK_IS_EFFECTIVE unknown
     exit 0
