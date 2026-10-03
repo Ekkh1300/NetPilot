@@ -35,6 +35,18 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 root() { if [ -n "$SUDO" ]; then sudo "$@"; else "$@"; fi; }
 
+# Runs a command as the unprivileged test uid. setresuid needs privilege, and `timeout`
+# cannot exec a shell function - which is why "timeout 15 root setpriv ..." failed with
+# "failed to run command: No such file or directory". curl's own --max-time bounds the wait,
+# so no external timeout wrapper is needed.
+as_test_uid() {
+  if [ -n "$SUDO" ]; then
+    sudo setpriv --reuid="$TEST_UID" --regid="$TEST_UID" --clear-groups "$@"
+  else
+    setpriv --reuid="$TEST_UID" --regid="$TEST_UID" --clear-groups "$@"
+  fi
+}
+
 start_daemon() {
   if [ -n "$SUDO" ]; then
     sudo -n "$PWD/$DAEMON" > "$BASE.log" 2>&1 &
@@ -136,8 +148,7 @@ case "$MODE" in
   say "baseline: the host reaches the local listener"
   # The stderr is kept: a setpriv failure and a curl failure look identical from the exit
   # code alone, and guessing between them wastes a cycle.
-  if timeout 15 root setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/" 2>"$BASE-setpriv.err"; then
+  if as_test_uid curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/" 2>"$BASE-setpriv.err"; then
     say "baseline: the test uid reaches it too"
   else
     say "the test uid cannot reach the listener even before blocking; cannot measure"
@@ -170,8 +181,7 @@ case "$MODE" in
     exit 0
   fi
 
-  if timeout 15 root setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+  if as_test_uid curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
     result BLOCK_IS_EFFECTIVE no
     say "the blocked uid still reached the listener"
   else
@@ -200,8 +210,7 @@ case "$MODE" in
   else
     result BLOCK_IS_EFFECTIVE no
   fi
-  if timeout 15 root setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18098/"; then
+  if as_test_uid curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18098/"; then
     say "the unblocked uid reaches the listener again - traffic was restored"
   else
     say "still unreachable after unblock; removing the rule did not restore traffic"
