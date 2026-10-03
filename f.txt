@@ -1,0 +1,10 @@
+  2026-10-03T10:43:03.7482590Z ^[[36;1mecho "$OUT" | grep -q 'MACOS_CAPABILITY=none' || { echo "FAIL"; exit 1; }^[[0m
+  2026-10-03T10:43:03.7483070Z ^[[36;1mecho "$OUT" | grep -q 'MACOS_REFUSES_WITH_REASON=yes' || { echo "FAIL"; exit 1; }^[[0m
+  2026-10-03T10:43:04.4149530Z {"support":"None","privileged":false,"blockingProbe":{"ok":false,"key":"daemon_unsupported","detail":"macOS cannot block one app from another: pf has no process matcher, and the Application Firewall is inbound-only. This needs a Network Extension."}}
+  2026-10-03T10:43:04.4150470Z MACOS_CAPABILITY=none
+  2026-10-03T10:43:04.4155450Z {"support":"None","privileged":false,"blockingProbe":{"ok":false,"key":"daemon_unsupported","detail":"macOS cannot block one app from another: pf has no process matcher, and the Application Firewall is inbound-only. This needs a Network Extension."}}MACOS_REFUSES_WITH_REASON=no
+  2026-10-03T10:43:04.4217540Z ##[error]Process completed with exit code 1.
+  2026-10-03T10:42:58.8688324Z ^[[36;1mecho "$OUT" | grep -q 'NFT_RULES_ACCEPTED=yes' || {^[[0m
+  2026-10-03T10:43:00.4991664Z netlink: Error: cache initialization failed: Operation not permitted
+  2026-10-03T10:43:00.4992631Z NFT_RULES_ACCEPTED=no
+  2026-10-03T10:43:00.5003914Z ##[error]Process completed with exit code 1.
