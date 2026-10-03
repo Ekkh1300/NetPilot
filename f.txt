@@ -1,8 +1,0 @@
-2026-10-03T11:18:20.9965430Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
-2026-10-03T11:18:20.9965846Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
-2026-10-03T11:18:20.9966173Z ^[[36;1m  echo "FAIL: the rule exists but traffic still flows"; exit 1; }^[[0m
-2026-10-03T11:18:22.0253897Z baseline: the host reaches the local listener
-2026-10-03T11:18:22.0257145Z setpriv/curl said: timeout: failed to run command ΓÇÿrootΓÇÖ: No such file or directory
-2026-10-03T11:18:22.0258128Z the uid exists as: nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
-2026-10-03T11:18:22.0258731Z BLOCK_IS_EFFECTIVE=unknown
-2026-10-03T11:18:22.0269973Z FAIL: no drop rule

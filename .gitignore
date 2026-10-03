@@ -65,3 +65,7 @@ harness.err
 shot.out
 shot.err
 test-out.txt
+jobreport.txt
+all.log
+f.txt
+runid.txt
