@@ -1,5 +1,7 @@
-2026-10-03T11:05:40.0785385Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
-2026-10-03T11:05:40.0785980Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
-2026-10-03T11:05:41.1377142Z baseline: this uid reaches the local listener
-2026-10-03T11:05:41.1378276Z the test uid cannot reach the listener even before blocking; cannot measure
-2026-10-03T11:05:41.1379207Z BLOCK_IS_EFFECTIVE=unknown
+2026-10-03T11:09:10.5266185Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
+2026-10-03T11:09:10.5266710Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
+2026-10-03T11:09:11.5839359Z baseline: the host reaches the local listener
+2026-10-03T11:09:11.5840313Z the test uid cannot reach the listener even before blocking; cannot measure
+2026-10-03T11:09:11.5841570Z setpriv/curl said: setpriv: setresuid failed: Operation not permitted
+2026-10-03T11:09:11.5842593Z the uid exists as: nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+2026-10-03T11:09:11.5843418Z BLOCK_IS_EFFECTIVE=unknown
