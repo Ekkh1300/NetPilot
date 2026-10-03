@@ -1,33 +1,31 @@
-2026-10-03T10:53:35.8691790Z 		meta skuid 65534 counter packets 0 bytes 0 drop comment "netpilot-block-65534"
-2026-10-03T10:53:35.8692505Z 	}
-2026-10-03T10:53:35.8692773Z }
-2026-10-03T10:53:35.8693092Z NFT_RULES_ACCEPTED=yes
-∩╗┐2026-10-03T10:53:35.8742983Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --tc)
-2026-10-03T10:53:35.8743589Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --tc)^[[0m
-2026-10-03T10:53:35.8743875Z ^[[36;1mecho "$OUT"^[[0m
-2026-10-03T10:53:35.8744166Z ^[[36;1mecho "$OUT" | grep -q 'TC_COMMANDS_ACCEPTED=yes' || {^[[0m
-2026-10-03T10:53:35.8744578Z ^[[36;1m  echo "FAIL: tc rejected our commands"; exit 1; }^[[0m
-2026-10-03T10:53:35.8813532Z shell: /usr/bin/bash -e {0}
-2026-10-03T10:53:35.8813823Z env:
-2026-10-03T10:53:35.8814045Z   DOTNET_ROOT: /usr/share/dotnet
-2026-10-03T10:53:35.8814309Z ##[endgroup]
-2026-10-03T10:53:37.6075628Z uplink: eth0
-2026-10-03T10:53:37.6076208Z --- the daemon's own reply ---
-2026-10-03T10:53:37.6077261Z {"up":{"ok":true,"key":"mv_done","detail":""},"down":{"ok":true,"key":"mv_done","detail":""},"support":"Full"}
-2026-10-03T10:53:37.6079175Z tc did not install the htb qdisc on eth0
-2026-10-03T10:53:37.6079609Z qdisc mq 0: root 
-2026-10-03T10:53:37.6080416Z qdisc fq_codel 0: parent :4 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
-2026-10-03T10:53:37.6081954Z qdisc fq_codel 0: parent :3 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
-2026-10-03T10:53:37.6083490Z qdisc fq_codel 0: parent :2 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
-2026-10-03T10:53:37.6084839Z qdisc fq_codel 0: parent :1 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
-2026-10-03T10:53:37.6085742Z qdisc clsact ffff: parent ffff:fff1 
-2026-10-03T10:53:37.6086194Z TC_COMMANDS_ACCEPTED=no
-2026-10-03T10:53:37.6095625Z FAIL: tc rejected our commands
-2026-10-03T10:53:37.6129708Z ##[error]Process completed with exit code 1.
-∩╗┐2026-10-03T10:53:37.6279248Z Post job cleanup.
-2026-10-03T10:53:37.7166131Z [command]/usr/bin/git version
-2026-10-03T10:53:37.7212133Z git version 2.55.0
-2026-10-03T10:53:37.7251433Z Temporarily overriding HOME='/home/runner/work/_temp/0c3348bb-4ce8-4f75-aa5e-5ef4a3ce2347' before making global git config changes
-2026-10-03T10:53:37.7252886Z Adding repository directory to the temporary git global config as a safe directory
-2026-10-03T10:53:37.7258558Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NetPilot/NetPilot
-2026-10-03T10:53:37.7305253Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+∩╗┐2026-10-03T11:01:29.8558695Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --block)
+2026-10-03T11:01:29.8559050Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --block)^[[0m
+2026-10-03T11:01:29.8559290Z ^[[36;1mecho "$OUT"^[[0m
+2026-10-03T11:01:29.8559598Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }^[[0m
+2026-10-03T11:01:29.8559991Z ^[[36;1mecho "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {^[[0m
+2026-10-03T11:01:29.8560316Z ^[[36;1m  echo "FAIL: the rule exists but traffic still flows"; exit 1; }^[[0m
+2026-10-03T11:01:29.8593272Z shell: /usr/bin/bash -e {0}
+2026-10-03T11:01:29.8593569Z env:
+2026-10-03T11:01:29.8593798Z   DOTNET_ROOT: /usr/share/dotnet
+2026-10-03T11:01:29.8594030Z ##[endgroup]
+2026-10-03T11:01:31.5607821Z BLOCK_RULE_PRESENT=yes
+2026-10-03T11:01:31.5608745Z this machine has no outbound network, so a block cannot be distinguished from a
+2026-10-03T11:01:31.5609370Z dead connection - reporting unknown rather than a pass
+2026-10-03T11:01:31.5609860Z BLOCK_IS_EFFECTIVE=unknown
+2026-10-03T11:01:31.5629314Z FAIL: the rule exists but traffic still flows
+2026-10-03T11:01:31.5640558Z ##[error]Process completed with exit code 1.
+∩╗┐2026-10-03T11:01:31.5758497Z Post job cleanup.
+2026-10-03T11:01:31.6382960Z [command]/usr/bin/git version
+2026-10-03T11:01:31.6416179Z git version 2.55.0
+2026-10-03T11:01:31.6453049Z Temporarily overriding HOME='/home/runner/work/_temp/9bd2b0f3-de75-4bf2-9fc6-e1b2e349f528' before making global git config changes
+2026-10-03T11:01:31.6453817Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T11:01:31.6458043Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NetPilot/NetPilot
+2026-10-03T11:01:31.6485478Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T11:01:31.6518833Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T11:01:31.6719059Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T11:01:31.6735078Z http.https://github.com/.extraheader
+2026-10-03T11:01:31.6742798Z [command]/usr/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T11:01:31.6769197Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T11:01:31.6975284Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T11:01:31.7014645Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+∩╗┐2026-10-03T11:01:31.7293316Z Cleaning up orphan processes

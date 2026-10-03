@@ -116,7 +116,35 @@ case "$MODE" in
 
 --block)
   rm -rf "$STATE"
-  if ! start_daemon; then say "daemon did not start"; cat "$BASE.log"; stop_daemon; exit 1; fi
+
+  # Measured against a listener on this machine, not against the internet.
+  #
+  # A CI runner may have no outbound route at all, and then "the blocked uid cannot reach
+  # anything" is indistinguishable from "the block works" - which is why this reports
+  # unknown rather than passing. Loopback traffic goes through the same nft output chain as
+  # everything else, so a local target makes the test deterministic and offline.
+  python3 -m http.server 18099 --bind 127.0.0.1 >/dev/null 2>&1 &
+  LISTENER=$!
+  sleep 1
+
+  if ! curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+    say "could not start the local listener; the effectiveness test cannot run"
+    kill $LISTENER 2>/dev/null
+    result BLOCK_IS_EFFECTIVE unknown
+    exit 0
+  fi
+  say "baseline: this uid reaches the local listener"
+  if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
+       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+    say "baseline: the test uid reaches it too"
+  else
+    say "the test uid cannot reach the listener even before blocking; cannot measure"
+    kill $LISTENER 2>/dev/null
+    result BLOCK_IS_EFFECTIVE unknown
+    exit 0
+  fi
+
+  if ! start_daemon; then say "daemon did not start"; cat "$BASE.log"; stop_daemon; kill $LISTENER 2>/dev/null; exit 1; fi
   post block "{\"uid\":$TEST_UID,\"blocked\":true}" >/dev/null || true
   sleep 1
   stop_daemon
@@ -127,37 +155,35 @@ case "$MODE" in
     result BLOCK_RULE_PRESENT no
   fi
 
-  # Does the rule actually drop? Measured, not assumed: a rule that exists but does not
-  # match is exactly the failure that leaves someone believing an app is blocked.
-  # First check the machine has egress at all, otherwise "blocked" proves nothing.
-  if timeout 15 curl -s --max-time 10 -o /dev/null https://1.1.1.1 2>/dev/null; then
-    HAS_EGRESS=yes
+  # The machine itself must still work, so the drop is specific to the blocked uid and the
+  # rule has not taken the host's own traffic down with it.
+  if curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+    say "the host still reaches the listener, so the rule is uid-specific"
   else
-    HAS_EGRESS=no
+    say "the host lost its own connectivity - the rule is too broad"
+    result BLOCK_IS_EFFECTIVE no
+    kill $LISTENER 2>/dev/null
+    exit 0
   fi
 
-  if [ "$HAS_EGRESS" = no ]; then
-    say "this machine has no outbound network, so a block cannot be distinguished from a"
-    say "dead connection - reporting unknown rather than a pass"
-    result BLOCK_IS_EFFECTIVE unknown
-  elif command -v setpriv >/dev/null 2>&1; then
-    if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-         curl -s --max-time 10 -o /dev/null https://1.1.1.1 2>/dev/null; then
-      result BLOCK_IS_EFFECTIVE no
-      say "the blocked uid still reached the network"
-    else
-      result BLOCK_IS_EFFECTIVE yes
-      say "the blocked uid is cut off while the machine itself still has egress"
-    fi
+  if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
+       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18099/"; then
+    result BLOCK_IS_EFFECTIVE no
+    say "the blocked uid still reached the listener"
   else
-    say "setpriv is unavailable; cannot measure whether the block takes effect"
-    result BLOCK_IS_EFFECTIVE unknown
+    result BLOCK_IS_EFFECTIVE yes
+    say "the blocked uid is cut off while the host itself still works"
   fi
+  kill $LISTENER 2>/dev/null
   ;;
 
 --unblock)
   rm -rf "$STATE"
-  if ! start_daemon; then say "daemon did not start"; cat "$BASE.log"; stop_daemon; exit 1; fi
+  python3 -m http.server 18098 --bind 127.0.0.1 >/dev/null 2>&1 &
+  LISTENER=$!
+  sleep 1
+
+  if ! start_daemon; then say "daemon did not start"; cat "$BASE.log"; stop_daemon; kill $LISTENER 2>/dev/null; exit 1; fi
   post block "{\"uid\":$TEST_UID,\"blocked\":true}" >/dev/null || true
   sleep 1
   post block "{\"uid\":$TEST_UID,\"blocked\":false}" >/dev/null || true
@@ -170,15 +196,13 @@ case "$MODE" in
   else
     result BLOCK_IS_EFFECTIVE no
   fi
-  if command -v setpriv >/dev/null 2>&1 && \
-     timeout 15 curl -s --max-time 10 -o /dev/null https://1.1.1.1 2>/dev/null; then
-    if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
-         curl -s --max-time 10 -o /dev/null https://1.1.1.1 2>/dev/null; then
-      say "the unblocked uid reaches the network again"
-    else
-      say "still unreachable after unblock"
-    fi
+  if timeout 15 setpriv --reuid=$TEST_UID --regid=$TEST_UID --clear-groups \
+       curl -sf --max-time 5 -o /dev/null "http://127.0.0.1:18098/"; then
+    say "the unblocked uid reaches the listener again - traffic was restored"
+  else
+    say "still unreachable after unblock; removing the rule did not restore traffic"
   fi
+  kill $LISTENER 2>/dev/null
   root nft flush table inet netpilot 2>/dev/null
   ;;
 
