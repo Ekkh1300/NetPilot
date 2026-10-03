@@ -1,6 +1,5 @@
-  macos daemon, real kernel                   failure
-      FAILED: VPN state is reported, not guessed
-  shared logic on macos-14                    success
   linux daemon, real kernel                   failure
-      FAILED: nftables accepts the ruleset this backend builds
+      FAILED: tc accepts the shaping commands this backend builds
   shared logic on ubuntu-24.04                success
+  macos daemon, real kernel                   success
+  shared logic on macos-14                    success

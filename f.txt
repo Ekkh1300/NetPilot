@@ -1,16 +1,33 @@
-  2026-10-03T10:48:49.6261290Z ^[[36;1mprint("pcVpn:", s["pcVpn"], " support:", s["support"])^[[0m
-  2026-10-03T10:48:49.6261660Z ^[[36;1massert s["pcVpn"] in ("active","unknown","off"), s["pcVpn"]^[[0m
-  2026-10-03T10:48:49.6262930Z ^[[36;1massert s["pcVpn"] == "off", f"claimed a VPN is active on a machine with none: {s['pcVpn']}"^[[0m
-  2026-10-03T10:48:51.4002770Z pcVpn: unknown  support: none
-  2026-10-03T10:48:51.4217490Z AssertionError: claimed a VPN is active on a machine with none: unknown
-  2026-10-03T10:48:51.4265530Z ##[error]Process completed with exit code 1.
-  ∩╗┐2026-10-03T10:48:34.0177565Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --nft)
-  2026-10-03T10:48:34.0177989Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --nft)^[[0m
-  2026-10-03T10:48:34.0178579Z ^[[36;1mecho "$OUT" | grep -q 'NFT_RULES_ACCEPTED=yes' || {^[[0m
-  2026-10-03T10:48:34.0178977Z ^[[36;1m  echo "FAIL: nft did not accept our ruleset"; exit 1; }^[[0m
-  2026-10-03T10:48:35.7483938Z {"ok":false,"key":"daemon_nft_failed","detail":"/dev/stdin:1:18-25: Error: No such file or directory; did you mean table \u2018netpilot\u2019 in family inet?\nflush table inet netpilot\n                 ^^^^^^^^"}
-  2026-10-03T10:48:35.7485607Z nft could not report our table (this is what the kernel says):
-  2026-10-03T10:48:35.7510150Z Error: No such file or directory
-  2026-10-03T10:48:35.7513989Z NFT_RULES_ACCEPTED=no
-  2026-10-03T10:48:35.7514615Z FAIL: nft did not accept our ruleset
-  2026-10-03T10:48:35.7543492Z ##[error]Process completed with exit code 1.
+2026-10-03T10:53:35.8691790Z 		meta skuid 65534 counter packets 0 bytes 0 drop comment "netpilot-block-65534"
+2026-10-03T10:53:35.8692505Z 	}
+2026-10-03T10:53:35.8692773Z }
+2026-10-03T10:53:35.8693092Z NFT_RULES_ACCEPTED=yes
+∩╗┐2026-10-03T10:53:35.8742983Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --tc)
+2026-10-03T10:53:35.8743589Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --tc)^[[0m
+2026-10-03T10:53:35.8743875Z ^[[36;1mecho "$OUT"^[[0m
+2026-10-03T10:53:35.8744166Z ^[[36;1mecho "$OUT" | grep -q 'TC_COMMANDS_ACCEPTED=yes' || {^[[0m
+2026-10-03T10:53:35.8744578Z ^[[36;1m  echo "FAIL: tc rejected our commands"; exit 1; }^[[0m
+2026-10-03T10:53:35.8813532Z shell: /usr/bin/bash -e {0}
+2026-10-03T10:53:35.8813823Z env:
+2026-10-03T10:53:35.8814045Z   DOTNET_ROOT: /usr/share/dotnet
+2026-10-03T10:53:35.8814309Z ##[endgroup]
+2026-10-03T10:53:37.6075628Z uplink: eth0
+2026-10-03T10:53:37.6076208Z --- the daemon's own reply ---
+2026-10-03T10:53:37.6077261Z {"up":{"ok":true,"key":"mv_done","detail":""},"down":{"ok":true,"key":"mv_done","detail":""},"support":"Full"}
+2026-10-03T10:53:37.6079175Z tc did not install the htb qdisc on eth0
+2026-10-03T10:53:37.6079609Z qdisc mq 0: root 
+2026-10-03T10:53:37.6080416Z qdisc fq_codel 0: parent :4 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+2026-10-03T10:53:37.6081954Z qdisc fq_codel 0: parent :3 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+2026-10-03T10:53:37.6083490Z qdisc fq_codel 0: parent :2 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+2026-10-03T10:53:37.6084839Z qdisc fq_codel 0: parent :1 limit 10240p flows 1024 quantum 1514 target 5ms interval 100ms memory_limit 32Mb ecn drop_batch 64 
+2026-10-03T10:53:37.6085742Z qdisc clsact ffff: parent ffff:fff1 
+2026-10-03T10:53:37.6086194Z TC_COMMANDS_ACCEPTED=no
+2026-10-03T10:53:37.6095625Z FAIL: tc rejected our commands
+2026-10-03T10:53:37.6129708Z ##[error]Process completed with exit code 1.
+∩╗┐2026-10-03T10:53:37.6279248Z Post job cleanup.
+2026-10-03T10:53:37.7166131Z [command]/usr/bin/git version
+2026-10-03T10:53:37.7212133Z git version 2.55.0
+2026-10-03T10:53:37.7251433Z Temporarily overriding HOME='/home/runner/work/_temp/0c3348bb-4ce8-4f75-aa5e-5ef4a3ce2347' before making global git config changes
+2026-10-03T10:53:37.7252886Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T10:53:37.7258558Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/NetPilot/NetPilot
+2026-10-03T10:53:37.7305253Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand

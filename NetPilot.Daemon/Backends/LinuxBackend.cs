@@ -398,30 +398,49 @@ public sealed class LinuxBackend : INetworkBackend
         if (dev.Length == 0)
             return MvResult.Fail("daemon_no_uplink", "no default route to shape");
 
-        var classes = new List<string>();
-        long ceilingBits = Math.Max(1, snap.UpBps.Values.DefaultIfEmpty(0).Max()) * 8;
-        if (ceilingBits <= 0) return MvResult.Success();     // nothing to shape
-
-        classes.Add("qdisc del dev " + dev + " root 2>/dev/null; true");
-        classes.Add($"qdisc add dev {dev} root handle 1: htb default 9999");
-        classes.Add($"class add dev {dev} parent 1: classid 1:1 htb rate {ceilingBits}bit ceil {ceilingBits}bit");
+        var classes = new List<(string Args, string What)>
+        {
+            // "replace", never "del" then "add". On a multiqueue NIC - eth0 on any modern
+            // server, and every CI runner - the root qdisc is "mq", and trying to delete it in
+            // order to put htb there fails. "replace" swaps it in one step.
+            ($"qdisc replace dev {dev} root handle 1: htb default 9999", "htb qdisc"),
+            ($"class replace dev {dev} parent 1: classid 1:1 htb rate {ceilingBits}bit ceil {ceilingBits}bit", "parent class"),
+        };
         foreach (var (uid, bps) in snap.UpBps.Where(kv => kv.Value > 0).OrderBy(kv => kv.Key))
         {
             long bits = bps * 8;
             // classid minor must be a 16-bit hex number, so the uid is folded into the
             // high half rather than written raw - uid 65536 would otherwise be invalid.
             string minor = (0x8000 + (uid & 0x7FFF)).ToString("x");
-            classes.Add($"class add dev {dev} parent 1:1 classid 1:{minor} htb rate {bits}bit ceil {bits}bit");
-            classes.Add($"filter add dev {dev} parent 1: protocol all prio 1 flower skip_hw ip_proto all " +
-                        $"handle 0x{minor} flowid 1:{minor}");
+            classes.Add(($"class replace dev {dev} parent 1:1 classid 1:{minor} htb rate {bits}bit ceil {bits}bit", $"class for uid {uid}"));
+            classes.Add(($"filter replace dev {dev} parent 1: protocol all prio 1 flower skip_hw ip_proto all " +
+                        $"handle 0x{minor} flowid 1:{minor}", $"skuid filter for uid {uid}"));
         }
 
-        var (ok, outp) = Shell.Run("tc", "-batch", 8000, stdin: string.Join("\n", classes));
-        if (!ok)
+        // One process per command, every exit code checked.
+        //
+        // This used to be a single "tc -batch" call, and that reported success while
+        // installing nothing: -batch prints a per-command error to stderr and still exits 0.
+        // A limiter that says it is enforcing and is not is the worst thing this product can
+        // do, so the check cannot be delegated to a batch mode.
+        foreach (var (args, what) in classes)
         {
-            LastPrivilegeError = outp?.Trim() ?? "";
-            return MvResult.Fail("daemon_tc_failed", LastPrivilegeError.Length > 0 ? LastPrivilegeError : "tc failed");
+            var (ok, outp) = Shell.Run("tc", args, 5000);
+            if (!ok)
+            {
+                LastPrivilegeError = outp?.Trim() ?? "";
+                return MvResult.Fail("daemon_tc_failed",
+                    $"the {what} was refused: {LastPrivilegeError}");
+            }
         }
+
+        // Then confirm instead of trusting. "Applied" is a claim; an htb qdisc actually being
+        // on the interface is evidence.
+        var (verify, verifyOut) = Shell.Run("tc", $"qdisc show dev {dev}", 5000);
+        if (verify && !verifyOut.Contains("htb", StringComparison.Ordinal))
+            return MvResult.Fail("daemon_tc_unverified",
+                "tc accepted the commands but no htb qdisc is present on the interface");
+
         return MvResult.Success();
     }
 
