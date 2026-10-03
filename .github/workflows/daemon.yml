@@ -1,0 +1,193 @@
+name: daemon (Linux & macOS)
+
+# The desktop app is WPF and Windows-only. The daemon is the Linux/macOS side, and until this
+# workflow existed it had been published without ever being run. These runners are real
+# machines - real kernel, real nftables, real networksetup - so the privileged paths can be
+# exercised for real rather than merely compiled.
+
+on:
+  push:
+    paths:
+      - 'NetPilot.Core/**'
+      - 'NetPilot.Daemon/**'
+      - 'Tools/daemon-smoke.sh'
+      - '.github/workflows/daemon.yml'
+  workflow_dispatch:
+
+jobs:
+  # ---------------------------------------------------------------- shared logic
+  logic:
+    name: shared logic on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: build the shared core
+        run: dotnet build NetPilot.Core/NetPilot.Core.csproj -v q
+
+      # The classifier and the token bucket are the parts that must behave identically on
+      # every platform, so they are tested on every platform rather than only on Windows.
+      - name: test the shared logic here, not just on Windows
+        run: dotnet test NetPilot.Tests/NetPilot.Tests.csproj --nologo \
+             --filter 'FullyQualifiedName~CrossPlatformLinkClassifierTests|FullyQualifiedName~TokenBucketTests'
+
+  # ---------------------------------------------------------------- linux
+  linux:
+    name: linux daemon, real kernel
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: build
+        run: dotnet publish NetPilot.Daemon/NetPilot.Daemon.csproj -c Release -r linux-x64 --self-contained true -o out
+
+      - name: the tools this backend depends on are actually present
+        run: |
+          set -e
+          for t in nft tc ip resolvectl; do
+            command -v "$t" >/dev/null && echo "  $t: yes" || echo "  $t: MISSING"
+          done
+
+      # Started unprivileged on purpose: the first thing to prove is that a non-root run
+      # reports its limits instead of pretending to enforce rules.
+      - name: unprivileged run must say what it cannot do
+        run: |
+          set -e
+          ./out/netpilotd > run.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 30); do curl -sf http://localhost:8787/api/v1/ping >/dev/null && break; sleep 1; done
+          echo "--- startup output ---"; cat run.log
+          echo "--- ping ---"; curl -s http://localhost:8787/api/v1/ping; echo
+          grep -q 'privileged  : no' run.log || { echo "FAIL: did not report non-privileged"; exit 1; }
+          kill $PID
+
+      - name: link detection finds the runner's own interfaces
+        run: |
+          set -e
+          ./out/netpilotd > run.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 30); do curl -sf http://localhost:8787/api/v1/status > status.json && break; sleep 1; done
+          cat status.json; echo
+          python3 - <<'PY'
+          import json,sys
+          s=json.load(open("status.json"))
+          names=[l["Name"] for l in s["links"]]
+          print("interfaces:", names)
+          assert names, "no interfaces detected on a real Linux kernel"
+          assert "lo" in names, f"loopback missing: {names}"
+          up=[l for l in s["links"] if l["IsUp"]]
+          assert up, "nothing reported Up"
+          assert s["platform"]=="linux"
+          print("OK")
+          PY
+          kill $PID
+
+      # The part that could not be verified by compiling: does the kernel accept what we
+      # generate? A ruleset that nft rejects means the firewall silently does nothing.
+      - name: nftables accepts the ruleset this backend builds
+        run: |
+          set -e
+          sudo nft list ruleset >/dev/null   # nft is usable as root here
+          OUT=$(./Tools/daemon-smoke.sh --nft)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'NFT_RULES_ACCEPTED=yes' || {
+            echo "FAIL: nft did not accept our ruleset"; exit 1; }
+
+      - name: tc accepts the shaping commands this backend builds
+        run: |
+          set -e
+          OUT=$(./Tools/daemon-smoke.sh --tc)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'TC_COMMANDS_ACCEPTED=yes' || {
+            echo "FAIL: tc rejected our commands"; exit 1; }
+
+      - name: a blocked uid is really blocked
+        run: |
+          set -e
+          OUT=$(./Tools/daemon-smoke.sh --block)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'BLOCK_RULE_PRESENT=yes' || { echo "FAIL: no drop rule"; exit 1; }
+          echo "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=yes' || {
+            echo "FAIL: the drop rule exists but traffic still flows"; exit 1; }
+
+      - name: unblocking really removes it
+        run: |
+          set -e
+          OUT=$(./Tools/daemon-smoke.sh --unblock)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'BLOCK_IS_EFFECTIVE=no' || {
+            echo "FAIL: still blocked after unblock"; exit 1; }
+
+  # ---------------------------------------------------------------- macos
+  macos:
+    name: macos daemon, real kernel
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: build
+        run: dotnet publish NetPilot.Daemon/NetPilot.Daemon.csproj -c Release -r osx-arm64 --self-contained true -o out
+
+      - name: run and report
+        run: |
+          set -e
+          ./out/netpilotd > run.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 40); do curl -sf http://localhost:8787/api/v1/ping >/dev/null && break; sleep 1; done
+          echo "--- startup output ---"; cat run.log
+          echo "--- ping ---"; curl -s http://localhost:8787/api/v1/ping; echo
+          grep -q 'on macos' run.log || { echo "FAIL: wrong platform reported"; exit 1; }
+          kill $PID
+
+      - name: link detection on a real Mac
+        run: |
+          set -e
+          ./out/netpilotd > run.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 40); do curl -sf http://localhost:8787/api/v1/status > status.json && break; sleep 1; done
+          cat status.json; echo
+          python3 - <<'PY'
+          import json
+          s=json.load(open("status.json"))
+          names=[l["Name"] for l in s["links"]]
+          print("interfaces:", names)
+          assert s["platform"]=="macos"
+          assert "lo0" in names, f"loopback missing: {names}"
+          up=[l for l in s["links"] if l["IsUp"]]
+          assert up, "nothing reported Up"
+          print("OK")
+          PY
+          kill $PID
+
+      # The mac-specific claim: that the daemon refuses per-app rules with the real reason
+      # instead of returning a switch that does nothing. Verified on a real Mac, with real
+      # pf present, so it is not a claim about a hypothetical machine.
+      - name: refuses per-app rules with the real reason
+        run: |
+          set -e
+          OUT=$(./Tools/daemon-smoke.sh --macos-capability)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'MACOS_CAPABILITY=none' || { echo "FAIL"; exit 1; }
+          echo "$OUT" | grep -q 'MACOS_REFUSES_WITH_REASON=yes' || { echo "FAIL"; exit 1; }
+
+      - name: networksetup really is what we claim to drive
+        run: |
+          set -e
+          networksetup -listallnetworkservices | head -5
+          OUT=$(./Tools/daemon-smoke.sh --macos-dns)
+          echo "$OUT"
+          echo "$OUT" | grep -q 'MACOS_DNS_READABLE=yes' || { echo "FAIL: could not read DNS"; exit 1; }

@@ -29,6 +29,13 @@ public static class ApiContract
     public const string Backup  = "POST /api/v1/backup";
     public const string Restore = "POST /api/v1/restore";
 
+    /// <summary>Not spoken by the Android app - these are how the daemon is driven on a real
+    /// machine (by CI, or by hand) without a GUI. The phone knows nothing about them, so
+    /// adding one cannot break pairing.</summary>
+    public const string Block      = "POST /api/v1/block";
+    public const string Limit      = "POST /api/v1/limit";
+    public const string Capability = "POST /api/v1/capability";
+
     /// <summary>Bearer prefix. The phone stores the pairing token and sends this with every call
     /// except <see cref="Ping"/> and <see cref="Pair"/>.</summary>
     public const string BearerPrefix = "Bearer ";

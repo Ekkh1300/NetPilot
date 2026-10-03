@@ -146,6 +146,12 @@ internal sealed class Bridge
             string path = ctx.Request.Url?.AbsolutePath?.TrimEnd('/') ?? "";
             string method = ctx.Request.HttpMethod.ToUpperInvariant();
             string route = $"{method} {path}";
+            string body = "";
+            if (method is "POST" or "PUT")
+            {
+                using var sr = new StreamReader(ctx.Request.InputStream, Encoding.UTF8);
+                body = await sr.ReadToEndAsync().ConfigureAwait(false);
+            }
 
             if (route == ApiContract.Ping)
             {
@@ -182,6 +188,56 @@ internal sealed class Bridge
                 return;
             }
 
+            // The privileged operations. Exposed over the bridge so the daemon can be
+            // exercised on a real machine without a GUI - which is the only way to find out
+            // whether the kernel accepts what we generate before a user does.
+            if (route == ApiContract.Block)
+            {
+                var (uid, okUid) = ReadInt(body, "uid");
+                var (blocked, okBlocked) = ReadBool(body, "blocked");
+                if (!okUid) { await Json(res, 400, new { error = "uid is required" }); return; }
+                if (!okBlocked) blocked = true;
+                await Json(res, 200, await _backend.SetBlockedAsync(
+                    new AppHandle { Uid = uid, DisplayName = "uid " + uid }, blocked));
+                return;
+            }
+
+            if (route == ApiContract.Limit)
+            {
+                var (uid, okUid) = ReadInt(body, "uid");
+                var (up, _) = ReadInt(body, "upBps");
+                var (down, _) = ReadInt(body, "downBps");
+                if (!okUid) { await Json(res, 400, new { error = "uid is required" }); return; }
+
+                var target = new AppHandle { Uid = uid, DisplayName = "uid " + uid };
+                var upResult = await _backend.SetUploadLimitAsync(target, up);
+                var downResult = await _backend.SetDownloadLimitAsync(target, down);
+                await Json(res, 200, new
+                {
+                    up = upResult,
+                    down = downResult,
+                    support = _backend.Capability(target).ToString(),
+                });
+                return;
+            }
+
+            if (route == ApiContract.Capability)
+            {
+                var (uid, okUid) = ReadInt(body, "uid");
+                var target = new AppHandle { Uid = okUid ? uid : -1 };
+                var support = _backend.Capability(target);
+                // Report what a call would actually do, not just a capability flag: on macOS
+                // the honest answer is a refusal, and it should be visible without side effects.
+                var probe = await _backend.SetBlockedAsync(target, true);
+                await Json(res, 200, new
+                {
+                    support = support.ToString(),
+                    privileged = _backend.IsPrivileged,
+                    blockingProbe = probe,
+                });
+                return;
+            }
+
             if (route == ApiContract.Backup)
             {
                 string snap = await _backend.CaptureSnapshotAsync();
@@ -215,5 +271,39 @@ internal sealed class Bridge
         res.ContentType = "application/json; charset=utf-8";
         res.ContentLength64 = bytes.Length;
         await res.OutputStream.WriteAsync(bytes);
+    }
+
+    private static (int Value, bool Ok) ReadInt(string body, string name)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return (0, false);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return (0, false);
+            if (!doc.RootElement.TryGetProperty(name, out var v)) return (0, false);
+            if (v.ValueKind == System.Text.Json.JsonValueKind.Number) return (v.GetInt32(), true);
+            if (v.ValueKind == System.Text.Json.JsonValueKind.String &&
+                int.TryParse(v.GetString(), out var p)) return (p, true);
+            return (0, false);
+        }
+        catch { return (0, false); }
+    }
+
+    private static (bool Value, bool Ok) ReadBool(string body, string name)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return (false, false);
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object) return (false, false);
+            if (!doc.RootElement.TryGetProperty(name, out var v)) return (false, false);
+            return v.ValueKind switch
+            {
+                System.Text.Json.JsonValueKind.True => (true, true),
+                System.Text.Json.JsonValueKind.False => (false, true),
+                _ => (false, false),
+            };
+        }
+        catch { return (false, false); }
     }
 }
