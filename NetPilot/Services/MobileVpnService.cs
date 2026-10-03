@@ -8,77 +8,6 @@ using NetPilot.Models;
 
 namespace NetPilot.Services;
 
-/// <summary>How the phone link is carried.</summary>
-public enum MvMethod
-{
-    Auto,
-    UsbTethering,
-    WifiHotspot,
-    DirectLan,
-    Proxy,
-}
-
-/// <summary>A network interface that could carry the phone's connection.</summary>
-public sealed class MvLink
-{
-    public int IfIndex;
-    public string Name = "";
-    public string Description = "";
-    /// <summary>usb | hotspot | lan | vpn | other</summary>
-    public string Kind = "other";
-    public bool IsUp;
-    public string Ipv4 = "";
-    public string Gateway = "";
-    public long Rx;
-    public long Tx;
-    public int Metric;
-    /// <summary>Adapter class according to the shared classifier (Vpn / Wifi / Ethernet / …).</summary>
-    public bool IsVpn;
-
-    /// <summary>Localized kind label; kept out of the service so it stays UI-free.</summary>
-    public string KindKey => Kind is "usb" or "hotspot" or "lan" ? $"mv_link_kind_{Kind}" : "mv_link_kind_other";
-}
-
-/// <summary>Everything the Mobile VPN page shows, produced by a single background probe.</summary>
-public sealed class MvState
-{
-    public List<MvLink> Links = new();
-    public bool MobileConnected;
-    /// <summary>true = the phone reports an active VPN, false = reported inactive, null = unknown.</summary>
-    public bool? MobileVpnActive;
-    public bool PcVpnActive;
-    /// <summary>A VPN-looking adapter is up but carries no usable address: a VPN client is
-    /// installed and not tunnelling. Not "active" (that blocks sharing for no reason) and not
-    /// confidently "inactive" either, so the page says unknown instead of guessing.</summary>
-    public bool PcVpnUnknown;
-    public bool PcConnected;
-    public int LocalPeers;
-    public long RateDown;
-    public long RateUp;
-    /// <summary>True when no rate could be derived from this probe (first sample, the
-    /// link changed identity, or no link is up) - the caller should take a second
-    /// sample rather than believe the zero it just read.</summary>
-    public bool WasBaseline;
-    public bool Sharing;
-    public DateTime TakenAt;
-
-    public MvLink UsbLink => Links.FirstOrDefault(l => l.Kind == "usb" && l.IsUp);
-    public MvLink HotspotLink => Links.FirstOrDefault(l => l.Kind == "hotspot" && l.IsUp);
-    public MvLink AnyUpLink =>
-        UsbLink ?? HotspotLink ?? Links.FirstOrDefault(l => l.IsUp && l.Kind == "lan");
-}
-
-public sealed class MvResult
-{
-    public bool Ok;
-    /// <summary>Localization key, so the caller decides the language.</summary>
-    public string Key = "";
-    public string Detail = "";
-
-    public static MvResult Success(string key = "mv_done") => new() { Ok = true, Key = key };
-    public static MvResult Fail(string key, string detail = "") => new() { Ok = false, Key = key, Detail = detail };
-}
-
 /// <summary>
 /// Detects the phone link, keeps a restorable snapshot of the PC network state and
 /// moves traffic onto the phone link. Two hard rules:
@@ -175,6 +104,17 @@ public sealed class MobileVpnService
     private MvState _detectCached;
     private DateTime _detectCachedAt;
     private Task<MvState> _detectRunning;
+
+    // The classifier moved to NetPilot.Core so Linux, macOS and Windows answer "what is this
+    // interface?" the same way. These forwarders keep every existing call site - and the
+    // tests that pin this behaviour - working against the single shared implementation.
+    public static string ClassifyLink(string description, string name, bool isVpn) =>
+        LinkClassifier.ClassifyLink(description, name, isVpn);
+
+    internal static bool HasUsableIpv4(string list) => LinkClassifier.HasUsableIpv4(list);
+
+    private static bool IsVpnLike(string description, string name) =>
+        LinkClassifier.IsVpnLike(description, name);
 
     // ------------------------------------------------------------------ detect
 
@@ -396,35 +336,6 @@ public sealed class MobileVpnService
                 $" links={state.Links.Count} pcVpn={state.PcVpnActive}{Environment.NewLine}");
         }
         catch { }
-    }
-
-    /// <summary>Classifies an interface as one of the supported transfer methods.</summary>
-    public static string ClassifyLink(string description, string name, bool isVpn)
-    {
-        if (isVpn) return "vpn";
-        string t = $"{description} {name}".ToLowerInvariant();
-
-        if (t.Contains("rndis") || t.Contains("remote ndis") || t.Contains("usb ncm") ||
-            t.Contains("tether") || t.Contains("android") || t.Contains("honor") ||
-            t.Contains("huawei") || t.Contains("xiaomi") || t.Contains("oppo") ||
-            t.Contains("vivo") || t.Contains("oneplus") || t.Contains("realme") ||
-            t.Contains("google nexus") || t.Contains("pixel") || t.Contains("mtp") ||
-            t.Contains("functionfs") || t.Contains("cdc ether") || t.Contains("pdanet") ||
-            t.Contains("broadband") || t.Contains("cdc ecm") || t.Contains("quectel") ||
-            t.Contains("novatel") || t.Contains("sierra wireless") || t.Contains("zte"))
-            return "usb";
-
-        if (t.Contains("wi-fi direct") || t.Contains("hosted network") ||
-            t.Contains("microsoft wi-fi direct") || t.Contains("mobile hotspot") ||
-            t.Contains("wireless display"))
-            return "hotspot";
-
-        if (t.Contains("loopback") || t.Contains("virtual") || t.Contains("hyper-v") ||
-            t.Contains("vmware") || t.Contains("vbox") || t.Contains("kernel") ||
-            t.Contains("npcap") || t.Contains("bluetooth") || t.Contains("bridge"))
-            return "other";
-
-        return "lan";
     }
 
     // ------------------------------------------------------------------ backup
@@ -823,63 +734,6 @@ if ('{{REVERT_PROXY}}' -eq '1') {
 # our metrics - and the next Share then captured those wrong numbers as the new 'original'.
 'RESTORED=' + $ok
 'FAILED=' + $fail";
-
-    /// <summary>
-    /// True when an interface holds at least one real IPv4 address.
-    ///
-    /// This is what separates a live tunnel from a virtual network card that the driver
-    /// merely reports as connected. APIPA (169.254.0.0/16) is what Windows self-assigns when
-    /// DHCP fails, so it is the signature of an adapter that is present but has no network
-    /// behind it.
-    /// </summary>
-    internal static bool HasUsableIpv4(string list)
-    {
-        if (string.IsNullOrWhiteSpace(list)) return false;
-        foreach (var part in list.Split(','))
-        {
-            string ip = part.Trim();
-            if (ip.Length == 0) continue;
-            if (ip == "0.0.0.0" || ip.StartsWith("127.")) continue;
-            if (ip.StartsWith("169.254.")) continue;
-            if (System.Net.IPAddress.TryParse(ip, out var parsed) &&
-                parsed.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                return true;
-        }
-        return false;
-    }
-
-    /// <summary>Adapters that are tunnels rather than a path to the phone (WAN Miniport,
-    /// OpenVPN, WireGuard, Tailscale, …). The shared classifier already covers most of
-    /// them; this catches the Windows dial-up names it does not know about.</summary>
-    private static bool IsVpnLike(string description, string name)
-    {
-        string t = $"{description} {name}".ToLowerInvariant();
-        if (t.Contains("wan miniport") || t.Contains("openvpn") || t.Contains("wireguard") ||
-            t.Contains("wintun") || t.Contains("tailscale") || t.Contains("tap-windows") ||
-            t.Contains("tun/") || t.Contains("ikev2") || t.Contains("pptp") ||
-            t.Contains("l2tp") || t.Contains("sstp"))
-            return true;
-
-        // Commercial VPN adapters. These must be caught before ClassifyLink, which
-        // would otherwise see "hotspot" inside "HotspotShield" and advertise the
-        // adapter as a phone link.
-        if (t.Contains("hotspotshield") || t.Contains("hotspot shield") ||
-            t.Contains("nordvpn") || t.Contains("protonvpn") || t.Contains("expressvpn") ||
-            t.Contains("windscribe") || t.Contains("mullvad") || t.Contains("surfshark") ||
-            t.Contains("anyconnect") || t.Contains("forticlient") || t.Contains("globalprotect") ||
-            t.Contains("zscaler") || t.Contains("checkpoint") || t.Contains("softether"))
-            return true;
-
-        // TUN-style proxy / client tunnels (Happ Tunnel, Clash, Xray, sing-box, ...).
-        // They describe themselves as plain adapters, so nothing else catches them:
-        // without this they would be offered as "the phone" in the link list and the
-        // traffic tile would keep sampling an almost idle tunnel - reading 0 B/s.
-        return t.Contains("happ") || t.Contains("tunnel") || t.Contains("wintun") ||
-               t.Contains("xray") || t.Contains("v2ray") || t.Contains("sing-box") ||
-               t.Contains("singbox") || t.Contains("clash") || t.Contains("hysteria") ||
-               t.Contains("shadowsocks") || t.Contains("trojan") || t.Contains("outline") ||
-               t.Contains("zerotier") || t.Contains("hamachi") || t.Contains("gost ");
-    }
 
     private static string Str(JsonElement e, string prop) =>
         e.TryGetProperty(prop, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";

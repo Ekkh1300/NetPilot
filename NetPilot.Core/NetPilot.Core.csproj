@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Everything that is not Windows.
+
+    The Windows app, the Android app and the macOS/Linux daemon all depend on this project,
+    so there is exactly ONE implementation of the models, the API contract and the algorithm
+    that decides what a limit rule means. That is the whole point: the previous layout would
+    have had a second, quietly diverging copy of this logic per platform, and every bug fixed
+    on one would have stayed broken on the others.
+
+    net8.0 (no -windows, no UseWPF) is what makes it loadable on Linux and macOS.
+    Nothing in here may call an OS API, spawn a shell, or reference System.Windows.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>NetPilot</RootNamespace>
+    <AssemblyName>NetPilot.Core</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

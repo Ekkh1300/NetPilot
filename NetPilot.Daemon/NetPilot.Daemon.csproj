@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The macOS / Linux build.
+
+    net8.0 with no UI framework, so the same sources publish to every RID. It runs headless
+    and is driven two ways: a local status endpoint for a human, and the existing
+    /api/v1 bridge so the Android app pairs with it unchanged.
+
+    Deliberately not Avalonia. A GUI port is a second, larger project; this one delivers the
+    features that can actually be delivered on these two operating systems, and refuses the
+    ones that cannot rather than pretending.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>NetPilot.Daemon</RootNamespace>
+    <AssemblyName>netpilotd</AssemblyName>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Version>1.2.2</Version>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64</RuntimeIdentifiers>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetPilot.Core\NetPilot.Core.csproj" />
+  </ItemGroup>
+
+</Project>

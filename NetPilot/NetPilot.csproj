@@ -40,6 +40,10 @@
     <InternalsVisibleTo Include="NetPilot.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\NetPilot.Core\NetPilot.Core.csproj" />
+  </ItemGroup>
+
   <!-- installer\Setup.cs is a separate program (compiled by installer\build.ps1 with the
        in-box C# compiler) - keep it out of the application's compile set. -->
   <ItemGroup>

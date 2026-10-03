@@ -1,0 +1,166 @@
+﻿Build started 10/3/2026 12:49:52 PM.
+     1>Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" on node 1 (Restore target(s)).
+     1>_GetAllRestoreProjectPathItems:
+         Determining projects to restore...
+       Restore:
+         X.509 certificate chain validation will use the default trust store selected by .NET for code signing.
+         X.509 certificate chain validation will use the default trust store selected by .NET for timestamping.
+         Assets file has not changed. Skipping assets file writing. Path: E:\op dn\NetPilot.Core\obj\project.assets.json
+         Assets file has not changed. Skipping assets file writing. Path: E:\op dn\NetPilot\obj\project.assets.json
+         Assets file has not changed. Skipping assets file writing. Path: E:\op dn\NetPilot.Tests\obj\project.assets.json
+         Restored E:\op dn\NetPilot.Core\NetPilot.Core.csproj (in 39 ms).
+         Restored E:\op dn\NetPilot\NetPilot.csproj (in 39 ms).
+         Restored E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj (in 41 ms).
+         
+         NuGet Config files used:
+             C:\Users\META PC\AppData\Roaming\NuGet\NuGet.Config
+         
+         Feeds used:
+             https://api.nuget.org/v3/index.json
+         All projects are up-to-date for restore.
+     1>Done Building Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (Restore target(s)).
+   1:7>Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" on node 1 (VSTest target(s)).
+     1>BuildProject:
+         Build started, please wait...
+   1:7>Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (1:7) is building "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (1:8) on node 1 (default targets).
+   1:8>Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (1:8) is building "E:\op dn\NetPilot.Core\NetPilot.Core.csproj" (3:6) on node 2 (default targets).
+     3>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj\Debug\net8.0\NetPilot.Core.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         NetPilot.Core -> E:\op dn\NetPilot.Core\bin\Debug\net8.0\NetPilot.Core.dll
+     3>Done Building Project "E:\op dn\NetPilot.Core\NetPilot.Core.csproj" (default targets).
+   1:8>Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (1:8) is building "E:\op dn\NetPilot\NetPilot.csproj" (2:6) on node 1 (default targets).
+     2>MainResourcesGeneration:
+       Skipping target "MainResourcesGeneration" because all output files are up-to-date with respect to the input files.
+       GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj\Debug\net8.0-windows\NetPilot.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CreateAppHost:
+       Skipping target "_CreateAppHost" because all output files are up-to-date with respect to the input files.
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Skipping target "_CopyOutOfDateSourceItemsToOutputDirectory" because all output files are up-to-date with respect to the input files.
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         NetPilot -> E:\op dn\NetPilot\bin\Debug\net8.0-windows\NetPilot.dll
+     2>Done Building Project "E:\op dn\NetPilot\NetPilot.csproj" (default targets).
+     1>GenerateTargetFrameworkMonikerAttribute:
+       Skipping target "GenerateTargetFrameworkMonikerAttribute" because all output files are up-to-date with respect to the input files.
+       CoreGenerateAssemblyInfo:
+       Skipping target "CoreGenerateAssemblyInfo" because all output files are up-to-date with respect to the input files.
+       _GenerateSourceLinkFile:
+         Source Link file 'obj\Debug\net8.0-windows\NetPilot.Tests.sourcelink.json' is up-to-date.
+       CoreCompile:
+       Skipping target "CoreCompile" because all output files are up-to-date with respect to the input files.
+       _CopyFilesMarkedCopyLocal:
+         Copying file from "C:\Users\META PC\.nuget\packages\xunit.abstractions\2.0.3\lib\netstandard2.0\xunit.abstractions.dll" to "E:\op dn\NetPilot.Tests\bin\Debug\net8.0-windows\xunit.abstractions.dll".
+         Touching "E:\op dn\NetPilot.Tests\obj\Debug\net8.0-windows\NetPilot.3A723BCD.Up2Date".
+       _CopyOutOfDateSourceItemsToOutputDirectory:
+       Building target "_CopyOutOfDateSourceItemsToOutputDirectory" partially, because some output files are out of date with respect to their input files.
+         Copying file from "C:\Users\META PC\.nuget\packages\xunit.runner.visualstudio\4.0.0\build\net8.0\xunit.abstractions.dll" to "E:\op dn\NetPilot.Tests\bin\Debug\net8.0-windows\xunit.abstractions.dll".
+       GenerateBuildDependencyFile:
+       Skipping target "GenerateBuildDependencyFile" because all output files are up-to-date with respect to the input files.
+       GenerateBuildRuntimeConfigurationFiles:
+       Skipping target "GenerateBuildRuntimeConfigurationFiles" because all output files are up-to-date with respect to the input files.
+       CopyFilesToOutputDirectory:
+         NetPilot.Tests -> E:\op dn\NetPilot.Tests\bin\Debug\net8.0-windows\NetPilot.Tests.dll
+     1>Done Building Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (default targets).
+     1>BuildProject:
+         Build completed.
+         
+Test run for E:\op dn\NetPilot.Tests\bin\Debug\net8.0-windows\NetPilot.Tests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v4.0.0+05679a7ab5 (64-bit .NET 8.0.31)
+[xUnit.net 00:00:00.11]   Discovering: NetPilot.Tests
+[xUnit.net 00:00:00.17]   Discovered:  NetPilot.Tests
+[xUnit.net 00:00:00.21]   Starting:    NetPilot.Tests
+  Passed NetPilot.Tests.BridgeLifecycleTests.Start_FromAUiThread_ReturnsImmediately_AndServesWhileThatThreadPumps [333 ms]
+  Passed NetPilot.Tests.BridgeLifecycleTests.Stop_ReportsStopped_AndCanBeStartedAgain [21 ms]
+  Passed NetPilot.Tests.BridgeLifecycleTests.FirewallStep_MustFinishWhileItsCallerOnlyPumps [3 s]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_GarbageInput_IsUnreachable [1 s]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_TcpConnectButNoHttpAnswer_IsUnreachable [1 s]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_ClosedPort_IsUnreachable [1 s]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_ByHostName_WithOnlyAnIpv4Listener_IsReachable [1 s]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_ByIpv4Literal_IsReachable [2 ms]
+  Passed NetPilot.Tests.ProxyReachableTests.Probe_HostThatCannotResolve_IsUnreachable [351 ms]
+  Passed NetPilot.Tests.ElevatedIntegrationTests.Dns_ApplyThenRestore_PutsTheAdapterBackExactly [22 s]
+  Passed NetPilot.Tests.ElevatedIntegrationTests.Dns_Backup_IsTakenOnce_PerAdapter [23 s]
+  Passed NetPilot.Tests.ElevatedIntegrationTests.Limiter_ApplyWithNoUploadLimit_CreatesNoQosPolicy [5 s]
+  Passed NetPilot.Tests.ElevatedIntegrationTests.Limiter_Apply_CreatsARealQosPolicy_AndRemove_TakesItAway [15 s]
+  Passed NetPilot.Tests.BridgeApiTests.Pair_WithTheShownCode_ReturnsATokenThatWorks [148 ms]
+  Passed NetPilot.Tests.BridgeApiTests.Unpair_ForgetsTheTokenSoItCannotBeReused [32 ms]
+  Passed NetPilot.Tests.BridgeApiTests.PairingCode_IsSixDigits_AndChangesWhenRequested [6 ms]
+  Passed NetPilot.Tests.BridgeApiTests.Pair_WithAWrongCode_IsRejected [6 ms]
+  Passed NetPilot.Tests.BridgeApiTests.UnknownRoute_WithoutToken_IsUnauthorized [3 ms]
+  Passed NetPilot.Tests.BridgeApiTests.UnknownRoute_WithToken_IsNotFound [19 ms]
+  Passed NetPilot.Tests.BridgeApiTests.Status_WithoutToken_IsRefusedBeforeAnythingRuns [7 ms]
+  Passed NetPilot.Tests.BridgeApiTests.Ping_IsPublicAndAnswersWithoutCredentials [5 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.AnAdapterWithOnlyAnApipaAddress_IsNotUsable [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "192.168.7.1", expected: True) [9 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "10.8.0.2,100.64.0.7", expected: True) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "169.254.12.34", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "10.8.0.2", expected: True) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "127.0.0.1", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "0.0.0.0", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "   ", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "169.254.1.1,10.0.0.5", expected: True) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "not-an-address", expected: False) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.UsableAddress_IsWhatSeparatesALiveTunnelFromAnIdleAdapter(ipv4: "100.64.0.7", expected: True) [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.CommaSeparatedListToleratesWhitespace [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.IPv6OnlyAdaptersDoNotCountAsAUsableAddress [< 1 ms]
+  Passed NetPilot.Tests.PcVpnDetectionTests.EveryAdapterOnThisMachineIsClassedConsistently [6 s]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Intel(R) Ethernet Connection", name: "Ethernet", isVpn: False, expected: "lan") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "WireGuard Tunnel", name: "", isVpn: True, expected: "vpn") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Npcap Loopback Adapter", name: "", isVpn: False, expected: "other") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "", name: "Local Area Connection* 10", isVpn: False, expected: "lan") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Microsoft Wi-Fi Direct Virtual Adapter", name: "", isVpn: False, expected: "hotspot") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "USB RNDIS Adapter", name: "Phone", isVpn: False, expected: "usb") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Hyper-V Virtual Ethernet Adapter", name: "", isVpn: False, expected: "other") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Android Device", name: "Ethernet 3", isVpn: False, expected: "usb") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "Local Area Connection* 12", name: "Hosted Network Adapter", isVpn: False, expected: "hotspot") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Links_AreClassifiedIntoTheTransferMethodTheAppSupports(description: "PdaNet Broadband Connection", name: "", isVpn: False, expected: "usb") [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.PowerShellCounters_AreParsedFromTheTranscript(output: "RESTORED=3\nFAILED=0", key: "RESTORED=", expected: 3) [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.PowerShellCounters_AreParsedFromTheTranscript(output: "RESTORED=0\nFAILED=4", key: "RESTORED=", expected: 0) [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.PowerShellCounters_AreParsedFromTheTranscript(output: "CHANGED=1\nFAILED=9", key: "CHANGED=", expected: 1) [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.PowerShellCounters_AreParsedFromTheTranscript(output: "  FAILED=2  ", key: "FAILED=", expected: 2) [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Share_ProxyMode_AgainstAnUnreachableProxy_IsRefusedAndChangesNothing [11 s]
+  Passed NetPilot.Tests.ShareSafetyTests.AnyUpLink_PrefersThePhoneOverThePlainLan [3 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Restore_WithoutASnapshot_SaysThereIsNothingToRestore [3 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Restore_WhoseAdaptersAllFail_ReportsFailure_NotSuccess [3 s]
+  Passed NetPilot.Tests.ShareSafetyTests.Share_ProxyMode_WithoutAProxyAtAll_IsRefused [8 s]
+  Passed NetPilot.Tests.ShareSafetyTests.Restore_PartialFailure_IsReportedAsPartial [7 s]
+  Passed NetPilot.Tests.ShareSafetyTests.PowerShellCounters_ReportMinusOneWhenTheKeyIsAbsent [< 1 ms]
+  Passed NetPilot.Tests.ShareSafetyTests.Share_RouteMode_WithoutAnInterface_IsRefusedBeforeAnythingRuns [129 ms]
+  Passed NetPilot.Tests.ServiceToggleTests.Stop_IsIdempotent [< 1 ms]
+  Passed NetPilot.Tests.ServiceToggleTests.Start_WhileRunning_IsANoOp [2 ms]
+  Passed NetPilot.Tests.ServiceToggleTests.RepeatedToggles_NeverGetStuck [2 s]
+[xUnit.net 00:02:01.02]   Finished:    NetPilot.Tests
+  Passed NetPilot.Tests.ServiceToggleTests.StopThenStart_ServesAgain [4 s]
+
+Test Run Successful.
+Total tests: 62
+     Passed: 62
+ Total time: 2.0294 Minutes
+     1>Done Building Project "E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj" (VSTest target(s)).
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:02:04.98

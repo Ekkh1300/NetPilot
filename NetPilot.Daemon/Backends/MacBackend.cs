@@ -1,0 +1,420 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+using NetPilot.Models;
+using NetPilot.Services;
+
+namespace NetPilot.Daemon.Backends;
+
+/// <summary>
+/// macOS implementation of <see cref="INetworkBackend"/>.
+///
+/// Read this before assuming the feature set matches Windows, because it does not.
+///
+/// macOS cannot do per-application firewalling or per-application bandwidth limiting:
+///   * <c>pf</c> has no process matcher. Unlike OpenBSD's pbox it cannot ask "which process
+///     sent this packet", so a rule can only match addresses, ports and protocols. There is
+///     no pf syntax that means "block this app".
+///   * There is no traffic-control equivalent to Linux's <c>tc</c>. Shaping per flow needs a
+///     kernel extension or a Network Extension, which requires a signed native app, a
+///     provisioning profile and Apple's approval.
+///   * The built-in Application Firewall is inbound-only, keyed on code signature, and cannot
+///     be scripted per port or per direction the way this product needs.
+///
+/// So <see cref="Capability"/> returns <see cref="RuleSupport.None"/> and the firewall and
+/// limiter entry points refuse with a reason that names the reason. That is the honest
+/// outcome. Shipping a toggle that appears to work here would be worse than showing nothing:
+/// a user who believes an app is blocked and it is not has no way to notice.
+///
+/// What macOS *can* do, and does:
+///   links + counters      ifconfig / netstat -ibn, both in the base system
+///   DNS                   networksetup, per network service
+///   system proxy          networksetup -setwebproxy / -setsecurewebproxy
+///   VPN detection         scutil --nc list plus the utun interfaces
+///   snapshot / restore    DNS and proxy state, both reversible
+/// </summary>
+public sealed class MacBackend : INetworkBackend
+{
+    public string Platform => "macos";
+
+    public bool IsPrivileged { get; }
+
+    public string LastPrivilegeError { get; private set; } = "";
+
+    private readonly string _stateDir;
+
+    public MacBackend(string stateDir)
+    {
+        _stateDir = stateDir;
+        IsPrivileged = GetEuid() == 0;
+    }
+
+    private static int GetEuid()
+    {
+        try { return (int)geteuid(); } catch { return -1; }
+    }
+
+    [System.Runtime.InteropServices.DllImport("unistd.h")]
+    private static extern uint geteuid();
+
+    private const string NoProcessMatch =
+        "macOS cannot block one app from another: pf has no process matcher, and the " +
+        "Application Firewall is inbound-only. This needs a Network Extension.";
+
+    private const string NoShaping =
+        "macOS has no per-flow shaper. This needs a Network Extension.";
+
+    // ============================ links ============================
+
+    public async Task<IReadOnlyList<MvLink>> GetLinksAsync(CancellationToken ct = default)
+    {
+        var links = new List<MvLink>();
+
+        // netstat -ibn gives one row per interface per address family, with the byte counters.
+        var (ok, outp) = await Shell.RunAsync("netstat", "-ibn", 6000, ct).ConfigureAwait(false);
+        if (!ok) return links;
+
+        var rows = new Dictionary<string, MvLink>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in outp.Split('\n').Skip(1))
+        {
+            var f = line.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries);
+            if (f.Length < 2) continue;
+            var cols = f[1].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            if (cols.Length < 10) continue;
+
+            string name = cols[0];
+            // netstat prints one row per interface *per address*, and the last column is the
+            // address. Rows for IPv6 carry no comparable byte counters, so only the IPv4 rows
+            // are summed below - otherwise the total would double-count every dual-stack
+            // interface.
+            if (!IPAddress.TryParse(cols[cols.Length - 1], out _)) continue;
+            if (cols.Length < 10) continue;
+
+            if (!rows.TryGetValue(name, out var link))
+            {
+                link = new MvLink
+                {
+                    IfIndex = rows.Count + 1,
+                    Name = name,
+                    Description = name,
+                    IsUp = !cols[cols.Length - 1].Contains("(inactive)", StringComparison.OrdinalIgnoreCase),
+                    Rx = ParseLong(cols[6]),
+                    Tx = ParseLong(cols[9]),
+                };
+                rows[name] = link;
+                links.Add(link);
+            }
+            else
+            {
+                // netstat prints one row per address; sum them so the counters are not
+                // overwritten by the last address on a multi-homed interface.
+                link.Rx += ParseLong(cols[6]);
+                link.Tx += ParseLong(cols[9]);
+            }
+        }
+
+        // Addresses and the default gateway come from ifconfig / route, which are the only
+        // base-system sources; parsing ifconfig is stable enough for what we need.
+        foreach (var link in links)
+        {
+            var (ok2, cfg) = await Shell.RunAsync("ifconfig", link.Name, 4000, ct).ConfigureAwait(false);
+            if (ok2)
+            {
+                link.Ipv4 = string.Join(",", cfg.Split('\n')
+                    .Where(l => l.Contains("inet ", StringComparison.Ordinal))
+                    .Select(l => l.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                                .SkipWhile(t => t != "inet").Skip(1).FirstOrDefault() ?? "")
+                    .Where(s => s.Length > 0));
+                link.Metric = 0;
+            }
+            link.IsVpn = LinkClassifier.IsVpnLike(link.Description, link.Name);
+            link.Kind = LinkClassifier.ClassifyLink(link.Description, link.Name, link.IsVpn);
+        }
+
+        var (gwOk, gwOut) = await Shell.RunAsync("route", "-n get default", 4000, ct).ConfigureAwait(false);
+        if (gwOk)
+        {
+            var devTok = gwOut.Split(' ').FirstOrDefault(t => t.StartsWith("interface:", StringComparison.Ordinal));
+            if (devTok != null)
+            {
+                string dev = devTok.Split(':')[1].Trim();
+                var target = links.FirstOrDefault(l => l.Name == dev);
+                if (target != null) target.Gateway = "default";
+            }
+        }
+
+        return links;
+    }
+
+    // ============================ DNS ============================
+
+    public Task<IReadOnlyList<AdapterDnsState>> GetDnsAsync(CancellationToken ct = default) =>
+        Task.FromResult<IReadOnlyList<AdapterDnsState>>(Array.Empty<AdapterDnsState>());
+
+    /// <summary>macOS DNS is configured per *network service*, not per interface, so the two
+    /// models do not line up. Resolving the service name for an interface needs
+    /// <c>networksetup -listallhardwareports</c>; returning the services is what the UI needs.</summary>
+    public async Task<IReadOnlyList<AdapterDnsState>> GetDnsPerServiceAsync(CancellationToken ct = default)
+    {
+        var result = new List<AdapterDnsState>();
+        var (ok, services) = await Shell.RunAsync("networksetup", "-listallnetworkservices", 6000, ct).ConfigureAwait(false);
+        if (!ok) return result;
+
+        foreach (var raw in services.Split('\n').Skip(1))
+        {
+            string service = raw.Trim();
+            if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
+            var (ok2, servers) = await Shell.RunAsync("networksetup", "-getdnsservers \"{service}\"", 4000, ct).ConfigureAwait(false);
+            if (!ok2) continue;
+            var v4 = servers.Split('\n')
+                .Select(l => l.Trim())
+                .Where(l => IPAddress.TryParse(l, out var ip) &&
+                            ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .ToList();
+            result.Add(new AdapterDnsState
+            {
+                AdapterName = service,
+                V4 = v4,
+                IsDynamic = v4.Count == 0,
+            });
+        }
+        return result;
+    }
+
+    public Task<MvResult> SetDnsAsync(string adapter, List<string> serversV4, CancellationToken ct = default)
+    {
+        if (serversV4 is null || serversV4.Count == 0)
+            return Task.FromResult(MvResult.Fail("daemon_dns_empty"));
+        if (!IsPrivileged)
+            return Task.FromResult(MvResult.Fail("daemon_need_root", "networksetup needs root"));
+
+        // "Empty" is how macOS is told to go back to DHCP, which is the restore case.
+        string value = serversV4.Count == 0 ? "empty" : string.Join(" ", serversV4);
+        var (ok, outp) = Shell.Run("networksetup", $"-setdnsservers \"{adapter}\" {value}", 8000);
+        LastPrivilegeError = outp?.Trim() ?? "";
+        return Task.FromResult(ok ? MvResult.Success()
+                                  : MvResult.Fail("daemon_dns_failed",
+                                      LastPrivilegeError.Length > 0 ? LastPrivilegeError : "networksetup refused"));
+    }
+
+    // ============================ per-process traffic ============================
+
+    public Task<IReadOnlyList<AppNetInfo>> GetProcessTrafficAsync(CancellationToken ct = default) =>
+        // lsof reports open sockets, not byte counts. There is no base-system per-process
+        // network counter, so this returns empty rather than counting connections and
+        // presenting them as traffic.
+        Task.FromResult<IReadOnlyList<AppNetInfo>>(Array.Empty<AppNetInfo>());
+
+    // ============================ firewall / limits ============================
+
+    public RuleSupport Capability(AppHandle target) => RuleSupport.None;
+
+    public Task<MvResult> SetBlockedAsync(AppHandle target, bool blocked, CancellationToken ct = default) =>
+        Task.FromResult(blocked
+            ? MvResult.Fail("daemon_unsupported", NoProcessMatch)
+            : MvResult.Fail("daemon_unsupported",
+                "nothing was blocked, so there is nothing to unblock - see the capability note"));
+
+    public Task<MvResult> SetUploadLimitAsync(AppHandle target, long bytesPerSecond, CancellationToken ct = default) =>
+        Task.FromResult(bytesPerSecond > 0
+            ? MvResult.Fail("daemon_unsupported", NoShaping)
+            : MvResult.Fail("daemon_unsupported", NoShaping));
+
+    public Task<MvResult> SetDownloadLimitAsync(AppHandle target, long bytesPerSecond, CancellationToken ct = default) =>
+        Task.FromResult(MvResult.Fail("daemon_unsupported", NoShaping));
+
+    // ============================ system proxy ============================
+
+    public async Task<string> GetSystemProxyAsync(CancellationToken ct = default)
+    {
+        var (ok, services) = await Shell.RunAsync("networksetup", "-listallnetworkservices", 6000, ct).ConfigureAwait(false);
+        if (!ok) return "";
+
+        foreach (var raw in services.Split('\n').Skip(1))
+        {
+            string service = raw.Trim();
+            if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
+            var (ok2, outp) = await Shell.RunAsync("networksetup", $"-getwebproxy \"{service}\"", 4000, ct).ConfigureAwait(false);
+            if (!ok2) continue;
+            string host = Field(outp, "Server:");
+            string port = Field(outp, "Port:");
+            if (host.Length > 0 && port.Length > 0) return $"{host}:{port}";
+        }
+        return "";
+    }
+
+    private static string Field(string text, string label)
+    {
+        foreach (var line in (text ?? "").Split('\n'))
+        {
+            var t = line.Trim();
+            if (t.StartsWith(label, StringComparison.Ordinal))
+                return t.Substring(label.Length).Trim();
+        }
+        return "";
+    }
+
+    public async Task<MvResult> SetSystemProxyAsync(string hostPort, CancellationToken ct = default)
+    {
+        var (ok, services) = await Shell.RunAsync("networksetup", "-listallnetworkservices", 6000, ct).ConfigureAwait(false);
+        if (!ok) return MvResult.Fail("daemon_proxy_failed", "networksetup is unavailable");
+
+        string host = "", port = "";
+        if (hostPort.Length > 0)
+        {
+            int i = hostPort.LastIndexOf(':');
+            if (i <= 0) return MvResult.Fail("daemon_proxy_bad", hostPort);
+            host = hostPort[..i];
+            port = hostPort[(i + 1)..];
+        }
+
+        int applied = 0, failed = 0;
+        string lastError = "";
+        foreach (var raw in services.Split('\n').Skip(1))
+        {
+            string service = raw.Trim();
+            if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
+
+            foreach (var kind in new[] { "webproxy", "securewebproxy" })
+            {
+                var (k, outp) = await Shell.RunAsync("networksetup",
+                    hostPort.Length == 0
+                        ? $"-{kind} \"{service}\" off"
+                        : $"-{kind} \"{service}\" {host} {port}", 5000, ct).ConfigureAwait(false);
+                if (k) applied++;
+                else { failed++; lastError = outp?.Trim() ?? ""; }
+            }
+        }
+
+        LastPrivilegeError = lastError;
+        if (applied == 0)
+            return MvResult.Fail("daemon_proxy_failed",
+                lastError.Length > 0 ? lastError : "no network service accepted the change");
+        return failed > 0
+            ? MvResult.Fail("daemon_proxy_partial", $"applied to {applied}, refused by {failed}")
+            : MvResult.Success();
+    }
+
+    // ============================ VPN ============================
+
+    public async Task<(bool Active, bool Unknown)> GetPcVpnStateAsync(CancellationToken ct = default)
+    {
+        bool up = false, unconfirmed = false;
+
+        // A utun interface with a routable address is a live tunnel; one without is an
+        // installed client that is not connected. Same three-state rule as Windows.
+        var links = await GetLinksAsync(ct).ConfigureAwait(false);
+        foreach (var l in links.Where(x => x.IsVpn))
+        {
+            if (!l.IsUp) continue;
+            if (LinkClassifier.HasUsableIpv4(l.Ipv4)) up = true;
+            else unconfirmed = true;
+        }
+
+        var (ok, outp) = await Shell.RunAsync("scutil", "--nc list", 5000, ct).ConfigureAwait(false);
+        if (ok)
+        {
+            foreach (var raw in outp.Split('\n'))
+            {
+                var line = raw.Trim();
+                if (!line.StartsWith("(", StringComparison.Ordinal)) continue;
+                // scutil prints (Connected) / (Disconnected) in the second column.
+                if (line.Contains("(Connected)", StringComparison.Ordinal)) up = true;
+            }
+        }
+
+        return up ? (true, false) : unconfirmed ? (false, true) : (false, false);
+    }
+
+    // ============================ snapshot ============================
+
+    public async Task<string> CaptureSnapshotAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var dns = new List<Dictionary<string, object>>();
+            var (ok, services) = await Shell.RunAsync("networksetup", "-listallnetworkservices", 6000, ct).ConfigureAwait(false);
+            if (ok)
+            {
+                foreach (var raw in services.Split('\n').Skip(1))
+                {
+                    string service = raw.Trim();
+                    if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
+                    var (_, servers) = await Shell.RunAsync("networksetup", $"-getdnsservers \"{service}\"", 4000, ct).ConfigureAwait(false);
+                    var v4 = servers.Split('\n').Select(l => l.Trim())
+                        .Where(l => IPAddress.TryParse(l, out _)).ToList();
+                    dns.Add(new Dictionary<string, object>
+                    {
+                        ["service"] = service,
+                        // "There aren't any DNS Servers set" is not an empty list - it is DHCP.
+                        ["servers"] = v4,
+                        ["dhcp"] = v4.Count == 0,
+                    });
+                }
+            }
+
+            var json = JsonSerializer.Serialize(new
+            {
+                takenAt = DateTime.Now.ToString("O"),
+                dns,
+                proxy = await GetSystemProxyAsync(ct).ConfigureAwait(false),
+            });
+            Directory.CreateDirectory(_stateDir);
+            File.WriteAllText(Path.Combine(_stateDir, "network-snapshot.json"), json);
+            return json;
+        }
+        catch { return ""; }
+    }
+
+    public async Task<MvResult> RestoreSnapshotAsync(CancellationToken ct = default)
+    {
+        string path = Path.Combine(_stateDir, "network-snapshot.json");
+        if (!File.Exists(path)) return MvResult.Fail("mv_snapshot_none");
+        try
+        {
+            using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(path, ct).ConfigureAwait(false));
+            var root = doc.RootElement;
+            bool did = false;
+
+            if (root.TryGetProperty("dns", out var dns) && dns.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var e in dns.EnumerateArray())
+                {
+                    if (!e.TryGetProperty("service", out var sv)) continue;
+                    string service = sv.GetString() ?? "";
+                    var servers = new List<string>();
+                    bool dhcp = e.TryGetProperty("dhcp", out var d) && d.GetBoolean();
+                    if (e.TryGetProperty("servers", out var arr))
+                        foreach (var s in arr.EnumerateArray()) servers.Add(s.GetString() ?? "");
+
+                    var r = await SetDnsAsync(service, dhcp ? new List<string>() : servers, ct).ConfigureAwait(false);
+                    if (r.Ok) did = true;
+                }
+            }
+
+            if (root.TryGetProperty("proxy", out var px))
+            {
+                var r = await SetSystemProxyAsync(px.GetString() ?? "", ct).ConfigureAwait(false);
+                if (r.Ok) did = true;
+            }
+
+            return did ? MvResult.Success("mv_snapshot_restored")
+                       : MvResult.Fail("mv_restore_failed", "nothing could be restored");
+        }
+        catch (Exception ex)
+        {
+            return MvResult.Fail("mv_error", ex.Message);
+        }
+    }
+
+    private static long ParseLong(string s) =>
+        long.TryParse(s?.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
+
+    public void Dispose() { }
+}
