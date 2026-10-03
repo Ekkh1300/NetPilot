@@ -398,6 +398,9 @@ public sealed class LinuxBackend : INetworkBackend
         if (dev.Length == 0)
             return MvResult.Fail("daemon_no_uplink", "no default route to shape");
 
+        long ceilingBits = Math.Max(1, snap.UpBps.Values.DefaultIfEmpty(0).Max()) * 8;
+        if (ceilingBits <= 0) return MvResult.Success();     // nothing to shape
+
         var classes = new List<(string Args, string What)>
         {
             // "replace", never "del" then "add". On a multiqueue NIC - eth0 on any modern
