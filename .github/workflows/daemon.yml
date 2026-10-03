@@ -79,11 +79,11 @@ jobs:
           python3 - <<'PY'
           import json,sys
           s=json.load(open("status.json"))
-          names=[l["Name"] for l in s["links"]]
+          names=[l["name"] for l in s["links"]]
           print("interfaces:", names)
           assert names, "no interfaces detected on a real Linux kernel"
           assert "lo" in names, f"loopback missing: {names}"
-          up=[l for l in s["links"] if l["IsUp"]]
+          up=[l for l in s["links"] if l["isUp"]]
           assert up, "nothing reported Up"
           assert s["platform"]=="linux"
           print("OK")
@@ -160,11 +160,11 @@ jobs:
           python3 - <<'PY'
           import json
           s=json.load(open("status.json"))
-          names=[l["Name"] for l in s["links"]]
+          names=[l["name"] for l in s["links"]]
           print("interfaces:", names)
           assert s["platform"]=="macos"
           assert "lo0" in names, f"loopback missing: {names}"
-          up=[l for l in s["links"] if l["IsUp"]]
+          up=[l for l in s["links"] if l["isUp"]]
           assert up, "nothing reported Up"
           print("OK")
           PY
