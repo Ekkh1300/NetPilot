@@ -1,10 +1,16 @@
-  2026-10-03T10:43:03.7482590Z ^[[36;1mecho "$OUT" | grep -q 'MACOS_CAPABILITY=none' || { echo "FAIL"; exit 1; }^[[0m
-  2026-10-03T10:43:03.7483070Z ^[[36;1mecho "$OUT" | grep -q 'MACOS_REFUSES_WITH_REASON=yes' || { echo "FAIL"; exit 1; }^[[0m
-  2026-10-03T10:43:04.4149530Z {"support":"None","privileged":false,"blockingProbe":{"ok":false,"key":"daemon_unsupported","detail":"macOS cannot block one app from another: pf has no process matcher, and the Application Firewall is inbound-only. This needs a Network Extension."}}
-  2026-10-03T10:43:04.4150470Z MACOS_CAPABILITY=none
-  2026-10-03T10:43:04.4155450Z {"support":"None","privileged":false,"blockingProbe":{"ok":false,"key":"daemon_unsupported","detail":"macOS cannot block one app from another: pf has no process matcher, and the Application Firewall is inbound-only. This needs a Network Extension."}}MACOS_REFUSES_WITH_REASON=no
-  2026-10-03T10:43:04.4217540Z ##[error]Process completed with exit code 1.
-  2026-10-03T10:42:58.8688324Z ^[[36;1mecho "$OUT" | grep -q 'NFT_RULES_ACCEPTED=yes' || {^[[0m
-  2026-10-03T10:43:00.4991664Z netlink: Error: cache initialization failed: Operation not permitted
-  2026-10-03T10:43:00.4992631Z NFT_RULES_ACCEPTED=no
-  2026-10-03T10:43:00.5003914Z ##[error]Process completed with exit code 1.
+  2026-10-03T10:48:49.6261290Z ^[[36;1mprint("pcVpn:", s["pcVpn"], " support:", s["support"])^[[0m
+  2026-10-03T10:48:49.6261660Z ^[[36;1massert s["pcVpn"] in ("active","unknown","off"), s["pcVpn"]^[[0m
+  2026-10-03T10:48:49.6262930Z ^[[36;1massert s["pcVpn"] == "off", f"claimed a VPN is active on a machine with none: {s['pcVpn']}"^[[0m
+  2026-10-03T10:48:51.4002770Z pcVpn: unknown  support: none
+  2026-10-03T10:48:51.4217490Z AssertionError: claimed a VPN is active on a machine with none: unknown
+  2026-10-03T10:48:51.4265530Z ##[error]Process completed with exit code 1.
+  ∩╗┐2026-10-03T10:48:34.0177565Z ##[group]Run OUT=$(./Tools/daemon-smoke.sh --nft)
+  2026-10-03T10:48:34.0177989Z ^[[36;1mOUT=$(./Tools/daemon-smoke.sh --nft)^[[0m
+  2026-10-03T10:48:34.0178579Z ^[[36;1mecho "$OUT" | grep -q 'NFT_RULES_ACCEPTED=yes' || {^[[0m
+  2026-10-03T10:48:34.0178977Z ^[[36;1m  echo "FAIL: nft did not accept our ruleset"; exit 1; }^[[0m
+  2026-10-03T10:48:35.7483938Z {"ok":false,"key":"daemon_nft_failed","detail":"/dev/stdin:1:18-25: Error: No such file or directory; did you mean table \u2018netpilot\u2019 in family inet?\nflush table inet netpilot\n                 ^^^^^^^^"}
+  2026-10-03T10:48:35.7485607Z nft could not report our table (this is what the kernel says):
+  2026-10-03T10:48:35.7510150Z Error: No such file or directory
+  2026-10-03T10:48:35.7513989Z NFT_RULES_ACCEPTED=no
+  2026-10-03T10:48:35.7514615Z FAIL: nft did not accept our ruleset
+  2026-10-03T10:48:35.7543492Z ##[error]Process completed with exit code 1.

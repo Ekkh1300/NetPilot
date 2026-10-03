@@ -314,20 +314,45 @@ public sealed class LinuxBackend : INetworkBackend
 
         var script = new List<string>
         {
-            $"flush table inet {NftTable}",
+            // "destroy", not "flush": nft applies a -f script atomically, so a single failing
+            // line rejects the whole file. "flush table" on a table that does not exist is
+            // exactly such a failure - the first run created nothing at all, and the kernel
+            // said so plainly: "No such file or directory; did you mean table 'netpilot'".
+            // "destroy" is the idempotent form: it succeeds whether or not the table is there.
+            $"destroy table inet {NftTable}",
             $"add table inet {NftTable}",
             $"add chain inet {NftTable} {NftChain} {{ type filter hook output priority 0; policy accept; }}",
         };
         foreach (var uid in snap.BlockedUids.Distinct().OrderBy(x => x))
             script.Add($"add rule inet {NftTable} {NftChain} meta skuid {uid} counter drop comment \"netpilot-block-{uid}\"");
 
-        var (ok, outp) = Shell.Run("nft", "-f -", 8000, stdin: string.Join("\n", script));
+        string body = string.Join("\n", script);
+
+        // "destroy" landed in nft 0.9.6. On anything older the atomic form is a syntax
+        // error, so fall back to the non-atomic form - which is what nft's own manual
+        // prescribes: semicolon-separated input is applied line by line and a failure does
+        // not discard the rest. Slightly weaker (a mid-script failure can leave a partial
+        // ruleset), which is why it is the fallback rather than the default.
+        var (ok, outp) = Shell.Run("nft", "-f -", 8000, stdin: body);
+        if (!ok && LooksLikeMissingDestroy(outp))
+        {
+            (ok, outp) = Shell.Run("nft", "-f -", 8000,
+                stdin: string.Join("; ", script.Select(s => s.TrimEnd(';'))));
+        }
+
         if (!ok)
         {
             LastPrivilegeError = outp?.Trim() ?? "";
             return MvResult.Fail("daemon_nft_failed", LastPrivilegeError.Length > 0 ? LastPrivilegeError : "nft failed");
         }
         return MvResult.Success();
+    }
+
+    private static bool LooksLikeMissingDestroy(string output)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return false;
+        var t = output.ToLowerInvariant();
+        return t.Contains("destroy") || t.Contains("syntax error");
     }
 
     // ============================ bandwidth ============================

@@ -299,31 +299,48 @@ public sealed class MacBackend : INetworkBackend
 
     public async Task<(bool Active, bool Unknown)> GetPcVpnStateAsync(CancellationToken ct = default)
     {
-        bool up = false, unconfirmed = false;
-
-        // A utun interface with a routable address is a live tunnel; one without is an
-        // installed client that is not connected. Same three-state rule as Windows.
-        var links = await GetLinksAsync(ct).ConfigureAwait(false);
-        foreach (var l in links.Where(x => x.IsVpn))
+        // macOS creates utun interfaces whether or not a VPN is running - AirDrop, Handoff,
+        // iCloud Private Relay and the OS itself all use them, and they carry no IPv4. A first
+        // run on a real Mac therefore reported "unknown" on a machine with no VPN at all,
+        // which is the same noise the Windows build had with idle TAP adapters.
+        //
+        // So the utun shape only counts as *possible* evidence when scutil actually lists a
+        // VPN service. With none configured there is nothing to be uncertain about.
+        var (scOk, scOut) = await Shell.RunAsync("scutil", "--nc list", 5000, ct).ConfigureAwait(false);
+        bool anyVpnService = false;
+        bool connected = false;
+        if (scOk)
         {
-            if (!l.IsUp) continue;
-            if (LinkClassifier.HasUsableIpv4(l.Ipv4)) up = true;
-            else unconfirmed = true;
-        }
-
-        var (ok, outp) = await Shell.RunAsync("scutil", "--nc list", 5000, ct).ConfigureAwait(false);
-        if (ok)
-        {
-            foreach (var raw in outp.Split('\n'))
+            foreach (var raw in scOut.Split('\n'))
             {
                 var line = raw.Trim();
+                if (line.Length == 0) continue;
+                if (line.StartsWith("*", StringComparison.Ordinal))
+                {
+                    // "* (Disconnected)" - an inactive service still counts as configured.
+                    anyVpnService = true;
+                    continue;
+                }
                 if (!line.StartsWith("(", StringComparison.Ordinal)) continue;
-                // scutil prints (Connected) / (Disconnected) in the second column.
-                if (line.Contains("(Connected)", StringComparison.Ordinal)) up = true;
+                anyVpnService = true;
+                if (line.Contains("(Connected)", StringComparison.Ordinal)) connected = true;
             }
         }
 
-        return up ? (true, false) : unconfirmed ? (false, true) : (false, false);
+        if (connected) return (true, false);
+
+        bool unconfirmed = false;
+        var links = await GetLinksAsync(ct).ConfigureAwait(false);
+        foreach (var l in links.Where(x => x.IsVpn && x.IsUp))
+        {
+            // A tun-style interface that does hold a routable address really is a tunnel.
+            if (LinkClassifier.HasUsableIpv4(l.Ipv4)) return (true, false);
+            unconfirmed = true;
+        }
+
+        // Nothing configured and nothing tunnelling: off, not unknown.
+        if (unconfirmed && anyVpnService) return (false, true);
+        return (false, false);
     }
 
     // ============================ snapshot ============================

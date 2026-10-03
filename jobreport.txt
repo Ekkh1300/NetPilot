@@ -1,6 +1,6 @@
   macos daemon, real kernel                   failure
-      FAILED: refuses per-app rules with the real reason
+      FAILED: VPN state is reported, not guessed
   shared logic on macos-14                    success
-  shared logic on ubuntu-24.04                success
   linux daemon, real kernel                   failure
       FAILED: nftables accepts the ruleset this backend builds
+  shared logic on ubuntu-24.04                success
