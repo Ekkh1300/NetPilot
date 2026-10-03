@@ -70,7 +70,17 @@ class NetPilotVpnService : VpnService() {
         private const val NOTIF_ID = 4711
 
         /** Only DNS is routed into the tunnel in DNS mode, so an answer is all it must fit. */
-        private const val TUN_MTU = 4096
+        /**
+         * MTU of the tunnel interface.
+         *
+         * It used to be 4096, which nothing on a real network can carry: the phone writes
+         * packets up to that size into the tunnel, they get IP-fragmented on the first hop,
+         * and reassembly is where the throughput goes - users saw the tunnel work and crawl.
+         * 1400 is the value WireGuard and the other mainstream Android tunnels use precisely
+         * because it survives Wi-Fi, cellular and a second encapsulation (a VPN inside the
+         * tunnel) without fragmenting.
+         */
+        private const val TUN_MTU = 1400
 
         /**
          * Per-app attribution is `ConnectivityManager.getConnectionOwnerUid`, which exists

@@ -514,6 +514,12 @@ public sealed class MobileVpnViewModel : PageVmBase
 
         ApiRunning = MobileVpnApi.Instance.Running;
         PairingCode = MobileVpnApi.Instance.PairingCode;
-        StatusMessage = L.Instance[ApiRunning ? "mv_api_running" : "mv_api_stopped"];
+        // Say why a start did not take, instead of leaving a button that looks dead. The
+        // common cause is the port still held by http.sys right after a stop.
+        StatusMessage = ApiRunning
+            ? L.Instance["mv_api_running"]
+            : MobileVpnApi.Instance.LastError.Length > 0
+                ? L.Instance["mv_api_start_failed"].Replace("%1$s", MobileVpnApi.Instance.LastError)
+                : L.Instance["mv_api_stopped"];
     }
 }

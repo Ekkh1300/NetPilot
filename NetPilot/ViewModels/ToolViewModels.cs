@@ -374,7 +374,7 @@ public class SettingsViewModel : PageVmBase
     private string _statusMessage = "";
     public string StatusMessage { get => _statusMessage; set => Set(ref _statusMessage, value); }
 
-    public string VersionText => "NetPilot 1.2.1";
+    public string VersionText => "NetPilot 1.2.2";
 
     /// <summary>Language choices for the settings combo box.</summary>
     public List<ChoiceVm> LanguageOptions { get; } = new();

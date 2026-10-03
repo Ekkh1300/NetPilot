@@ -84,33 +84,78 @@ public sealed class MobileVpnApi : IDisposable
     /// </summary>
     public void Start(int port) => _ = StartAsync(port);
 
+    /// <summary>
+    /// Why the last <see cref="StartAsync"/> gave up, for the UI to show instead of a
+    /// button that silently refuses to light up.
+    /// </summary>
+    public string LastError { get; private set; } = "";
+
+    /// <summary>
+    /// Windows releases an http.sys URL group a moment after the listener closes, so a
+    /// stop-then-start in quick succession failed with "address already in use", the catch
+    /// swallowed it, and the page just sat at "stopped" - which users report as the toggle
+    /// not working. Retry that one case briefly; a permanent refusal (no URL ACL, so the
+    /// wildcard bind is denied) is not retried, because that is not going to change and the
+    /// loopback fallback below is the right answer for it.
+    /// </summary>
+    private const int BindRetries = 8;
+    private const int BindRetryDelayMs = 250;
+
+    private static bool IsAddressInUse(HttpListenerException ex) =>
+        ex.ErrorCode == 98 /* SocketError.AddressAlreadyInUse */ ||
+        (ex.InnerException is System.Net.Sockets.SocketException se && se.SocketErrorCode ==
+            System.Net.Sockets.SocketError.AddressAlreadyInUse);
+
     public async Task StartAsync(int port)
     {
         if (Running) return;
+        LastError = "";
         try
         {
             _listener = new HttpListener();
-            try
+            bool wildcard = false;
+            Exception bindError = null;
+
+            for (int attempt = 1; ; attempt++)
             {
-                // All interfaces first, so the Android app can reach us over USB or Wi-Fi.
-                _listener.Prefixes.Add($"http://+:{port}/");
-                _listener.Start();
-                ReachableFromPhone = true;
+                try
+                {
+                    // All interfaces first, so the Android app can reach us over USB or Wi-Fi.
+                    _listener.Prefixes.Add($"http://+:{port}/");
+                    _listener.Start();
+                    wildcard = true;
+                    break;
+                }
+                catch (HttpListenerException ex) when (!IsAddressInUse(ex))
+                {
+                    // A machine without the URL ACL (non-elevated start, hardened policy):
+                    // fall back to loopback instead of losing the bridge entirely.
+                    _listener.Close();
+                    _listener = new HttpListener();
+                    _listener.Prefixes.Add($"http://localhost:{port}/");
+                    _listener.Start();
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    bindError = ex;
+                    if (attempt >= BindRetries)
+                    {
+                        LastError = ex.Message;
+                        throw;
+                    }
+                    try { await Task.Delay(BindRetryDelayMs).ConfigureAwait(false); } catch { }
+                    // Rebuild the listener: after a failed Start it cannot be reused.
+                    try { _listener.Close(); } catch { }
+                    _listener = new HttpListener();
+                }
             }
-            catch
-            {
-                // A machine without the URL ACL (non-elevated start, hardened policy) can
-                // still listen on loopback - degrade instead of losing the bridge entirely.
-                // ReachableFromPhone stays false so the page can say *why* a phone cannot
-                // find it, instead of the phone just reporting "unreachable" forever.
-                _listener.Close();
-                _listener = new HttpListener();
-                _listener.Prefixes.Add($"http://localhost:{port}/");
-                _listener.Start();
-                ReachableFromPhone = false;
-            }
+
             _cts = new CancellationTokenSource();
             Running = true;
+            // A wildcard bind that fell back to loopback is not reachable from a phone, and
+            // the page has to be able to explain that rather than show "not paired".
+            ReachableFromPhone = wildcard;
 
             // The listener is already serving; the accept loop goes first so a request that
             // arrives during the PowerShell call is answered instead of queueing silently.
@@ -121,6 +166,7 @@ public sealed class MobileVpnApi : IDisposable
         catch (Exception ex)
         {
             Running = false;
+            LastError = string.IsNullOrEmpty(LastError) ? ex.Message : LastError;
             App.LogCrash(ex);
         }
         Raise();
@@ -208,7 +254,7 @@ public sealed class MobileVpnApi : IDisposable
                     await JsonAsync(res, 200, new
                     {
                         app = "NetPilot",
-                        version = "1.2.1",
+                        version = "1.2.2",
                         api = 1,
                         paired = Paired,
                     }).ConfigureAwait(false);

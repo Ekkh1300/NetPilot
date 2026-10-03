@@ -95,6 +95,8 @@ static partial class Strings
         ["mv_device"] = ("دستگاه", "Device"),
         ["mv_api_start"] = ("شروع سرویس", "Start Service"),
         ["mv_api_stop"] = ("توقف سرویس", "Stop Service"),
+        ["mv_api_start_failed"] = ("شروع نشد: %1$s — اگر همین حالا متوقف کرده‌اید، چند ثانیه صبر کنید و دوباره بزنید.",
+                                   "Could not start: %1$s — if you just stopped the service, wait a few seconds and try again."),
         ["mv_api_hint"] = ("اپ اندروید از این آدرس و کد برای اتصال استفاده می‌کند. احراز هویت با توکن انجام می‌شود. "
                            + "اگر آدرس را نمی‌بینید، در گوشی دکمهٔ «یافتن رایانه» را بزنید.",
                            "The Android app connects to this address using the code below. Requests are authenticated with a bearer token. "
