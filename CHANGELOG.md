@@ -3,6 +3,32 @@
 All notable changes to both apps are recorded here. The Android and Windows apps ship
 together and share a version number.
 
+## 1.2.2
+
+### Fixed — Android
+* **The tunnel fragmented every packet and crawled.** The tunnel interface was created with
+  **MTU 4096**, which nothing on a real network carries: the phone wrote packets up to 4 KB
+  into the tunnel, they were IP-fragmented on the first hop, and reassembly ate the
+  throughput. From the user's side it read as "the PC sharing works, but the speed is bad".
+  The MTU is now **1400** — what WireGuard and the mainstream Android tunnels use, because it
+  survives Wi-Fi, cellular and a second encapsulation without fragmenting.
+
+### Changed — Windows
+* **A failed service start said nothing.** A bind that failed was swallowed: the page sat at
+  "stopped" with no reason, which is indistinguishable from a dead "Stop Service" button. A
+  bind blocked by the port still being held is now retried briefly (8 × 250 ms), and any
+  remaining failure is shown instead of swallowed. 4 new tests drive the same
+  `Start`/`Stop` calls the toggle button makes.
+
+## 1.2.1
+
+### Fixed — Windows
+* **The app reported a PC VPN that was not connected.** An adapter counted as "VPN active"
+  merely by being Up with an IPv4 address, which a stale or idle virtual adapter satisfies.
+  Detection now requires a usable IPv4, and the third state — Up without one — is reported as
+  **Unknown** (grey) rather than active, and does not block sharing. `Get-VpnConnection`'s
+  own `Connected` status remains authoritative.
+
 ## 1.2.0
 
 ### Fixed — Android
