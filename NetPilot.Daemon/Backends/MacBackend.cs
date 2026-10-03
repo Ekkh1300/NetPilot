@@ -81,42 +81,36 @@ public sealed class MacBackend : INetworkBackend
         if (!ok) return links;
 
         var rows = new Dictionary<string, MvLink>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in outp.Split('\n').Skip(1))
+        foreach (var raw in outp.Split('\n').Skip(1))
         {
-            var f = line.Split(new[] { ' ', '\t' }, 2, StringSplitOptions.RemoveEmptyEntries);
-            if (f.Length < 2) continue;
-            var cols = f[1].Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (cols.Length < 10) continue;
+            // Split the whole line on whitespace, all columns at once.
+            //
+            // This used to split into two parts and then read the *second* part as the column
+            // list, which threw away the first column - the interface name. On a real Mac
+            // every interface came back named "1500", which is its MTU. Nothing noticed,
+            // because this code has never run on anything but a build server that never
+            // started it.
+            var cols = raw.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (cols.Length < 11) continue;              // the header row
 
             string name = cols[0];
-            // netstat prints one row per interface *per address*, and the last column is the
-            // address. Rows for IPv6 carry no comparable byte counters, so only the IPv4 rows
-            // are summed below - otherwise the total would double-count every dual-stack
-            // interface.
-            if (!IPAddress.TryParse(cols[cols.Length - 1], out _)) continue;
-            if (cols.Length < 10) continue;
+            // One row per interface per address; the first row carries the cumulative
+            // counters, and summing the rest would count a dual-stack interface twice.
+            if (rows.ContainsKey(name)) continue;
 
-            if (!rows.TryGetValue(name, out var link))
+            // macOS layout: Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes Coll
+            // A down interface shows "(inactive)" where its address would be.
+            var link = new MvLink
             {
-                link = new MvLink
-                {
-                    IfIndex = rows.Count + 1,
-                    Name = name,
-                    Description = name,
-                    IsUp = !cols[cols.Length - 1].Contains("(inactive)", StringComparison.OrdinalIgnoreCase),
-                    Rx = ParseLong(cols[6]),
-                    Tx = ParseLong(cols[9]),
-                };
-                rows[name] = link;
-                links.Add(link);
-            }
-            else
-            {
-                // netstat prints one row per address; sum them so the counters are not
-                // overwritten by the last address on a multi-homed interface.
-                link.Rx += ParseLong(cols[6]);
-                link.Tx += ParseLong(cols[9]);
-            }
+                IfIndex = rows.Count + 1,
+                Name = name,
+                Description = name,
+                IsUp = !cols[3].Contains("(inactive)", StringComparison.OrdinalIgnoreCase),
+                Rx = ParseLong(cols[6]),                 // Ibytes
+                Tx = ParseLong(cols[9]),                 // Obytes
+            };
+            rows[name] = link;
+            links.Add(link);
         }
 
         // Addresses and the default gateway come from ifconfig / route, which are the only
