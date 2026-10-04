@@ -1,0 +1,16 @@
+﻿gh.exe : Unknown JSON field: "assets"
+At line:2 char:1
++ & $gh release list --repo Ekkh1300/NetPilot --limit 8 --json tagName, ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Unknown JSON field: "assets":String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Available fields:
+  createdAt
+  isDraft
+  isImmutable
+  isLatest
+  isPrerelease
+  name
+  publishedAt
+  tagName
