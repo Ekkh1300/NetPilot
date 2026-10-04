@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using NetPilot.Core.Logging;
 using NetPilot.Models;
 
 namespace NetPilot.Services;
@@ -193,6 +194,8 @@ public sealed class LimiterService
                 FirewallHelper.RemoveRulesFor(path);
                 await RemoveQosAsync(path).ConfigureAwait(false);
                 lock (_tokenLock) _tokens.Remove(path);
+                Log.Debug("limiter", "no active rule for " + System.IO.Path.GetFileName(path) +
+                                     ", any limits on it are lifted");
                 return;
             }
 
@@ -202,6 +205,11 @@ public sealed class LimiterService
                 FirewallHelper.AddBlockRules(path, out string outName, out string inName);
                 FirewallHelper.SetRuleEnabled(outName, true);
                 FirewallHelper.SetRuleEnabled(inName, true);
+                // Info, not Debug: "I blocked this app" is the single most consequential thing
+                // this product does, and it is the answer to the question a user asks when they
+                // wonder why their app cannot reach the network.
+                Log.Info("limiter", "blocked " + System.IO.Path.GetFileName(path) +
+                                    " in both directions");
                 return;
             }
 
@@ -214,8 +222,15 @@ public sealed class LimiterService
             {
                 if (!_tokens.ContainsKey(path)) _tokens[path] = 0;
             }
+
+            Log.Info("limiter", "limiting " + System.IO.Path.GetFileName(path) +
+                                ": up " + effective.UpLimitBps + " B/s" +
+                                (effective.UpLimitBps <= 0 ? " (upload unlimited)" : "") +
+                                ", down " + (effective.DownLimitBps > 0
+                                                 ? effective.DownLimitBps + " B/s shaped by dropping"
+                                                 : "unlimited"));
         }
-        catch (Exception ex) { App.LogCrash(ex); }
+        catch (Exception ex) { App.LogCrash("limiter", ex); }
     }
 
     private static string QosName(string path) =>

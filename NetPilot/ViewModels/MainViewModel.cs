@@ -96,6 +96,7 @@ public class MainViewModel : ObservableObject
     public ProfilesViewModel Profiles { get; }
     public MobileVpnViewModel MobileVpn { get; }
     public SettingsViewModel Settings { get; }
+    public DiagnosticsViewModel Diagnostics { get; }
 
     public RelayCommand MinimizeCommand { get; }
     public RelayCommand CloseCommand { get; }
@@ -125,11 +126,12 @@ public class MainViewModel : ObservableObject
         Profiles = new ProfilesViewModel();
         MobileVpn = new MobileVpnViewModel();
         Settings = new SettingsViewModel();
+        Diagnostics = new DiagnosticsViewModel();
 
         foreach (var vm in new PageVmBase[]
         {
             Dashboard, DnsManager, Benchmark, SmartDns, Monitor, PerApp, NetLimiter, Schedules,
-            UsageHistory, ConnectionHistory, Tools, Adapters, Profiles, MobileVpn, Settings,
+            UsageHistory, ConnectionHistory, Tools, Adapters, Profiles, MobileVpn, Settings, Diagnostics,
         })
             vm.NavigateRequested += Switch;
 
@@ -148,6 +150,9 @@ public class MainViewModel : ObservableObject
         AddNav("profiles", "\uE736", Profiles);
         AddNav("mobile_vpn", "\uE774", MobileVpn);
         AddNav("settings", "\uE713", Settings);
+        // Diagnostics last: it is the page people reach for when something is already wrong,
+        // not somewhere to start a session from.
+        AddNav("diagnostics", "\uE9D5", Diagnostics);
 
         CurrentPage = Dashboard;
         Nav[0].IsSelected = true;

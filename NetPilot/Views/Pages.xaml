@@ -2021,4 +2021,88 @@
         </ScrollViewer>
     </DataTemplate>
 
+  <!-- Diagnostics: the log, whether it can be trusted, and a support report. -->
+  <DataTemplate DataType="{x:Type vm:DiagnosticsViewModel}">
+      <Grid Margin="30,26,30,34">
+          <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="*" />
+              <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0" Style="{StaticResource S.Card}">
+              <StackPanel>
+                  <TextBlock Text="{Binding Lang[diagnostics]}" Style="{StaticResource T.H1}" />
+                  <TextBlock Text="{Binding SummaryText}" Style="{StaticResource T.Muted}" Margin="0,6,0,14" />
+
+                  <!-- The counters sit above the log, not in a file somewhere: a log with a
+                       hole in it that looks complete is worse than one that admits it. -->
+                  <Border Background="{StaticResource B.SurfaceAlt}" CornerRadius="10" Padding="14,11">
+                      <Grid>
+                          <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="*" />
+                              <ColumnDefinition Width="Auto" />
+                              <ColumnDefinition Width="Auto" />
+                              <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Grid.Column="0" Text="{Binding Lang[dash_logger_file]}" Style="{StaticResource T.Muted}"
+                                     VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,0,16,0" />
+                          <TextBlock Grid.Column="1" Text="{Binding WrittenText}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                          <TextBlock Grid.Column="2" Text="{Binding DroppedText}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" Margin="0,0,16,0" />
+                          <TextBlock Grid.Column="3" Text="{Binding QueuedText}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                      </Grid>
+                  </Border>
+
+                  <Border Background="{StaticResource B.SurfaceAlt}" CornerRadius="10" Padding="14,11" Margin="0,10,0,0"
+                          Visibility="{Binding HasProblems, Converter={StaticResource B.BoolToVisibility}}">
+                      <TextBlock Text="{Binding ProblemText}" Style="{StaticResource T.Muted}" TextWrapping="Wrap" />
+                  </Border>
+              </StackPanel>
+          </Border>
+
+          <Grid Grid.Row="1" Margin="0,14,0,12">
+              <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <ComboBox Grid.Column="0" Style="{StaticResource S.ComboBox}" Width="150" Margin="0,0,10,0"
+                        ItemsSource="{Binding Levels}" SelectedItem="{Binding Level}" />
+              <TextBox Grid.Column="1" Style="{StaticResource S.Input}" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" />
+              <TextBlock Grid.Column="2" Text="{Binding EntryCountText}" Style="{StaticResource T.Muted}"
+                         VerticalAlignment="Center" Margin="12,0,0,0" />
+              <Button Grid.Column="3" Content="{Binding Lang[st_refresh]}" Command="{Binding RefreshCommand}" Margin="10,0,0,0" />
+          </Grid>
+
+          <Border Grid.Row="2" Style="{StaticResource S.Card}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                  <ItemsControl ItemsSource="{Binding Lines}">
+                      <ItemsControl.ItemTemplate>
+                          <DataTemplate>
+                              <Border Background="{StaticResource B.SurfaceAlt}" CornerRadius="8" Padding="12,7" Margin="0,0,0,5">
+                                  <Grid>
+                                      <Grid.ColumnDefinitions>
+                                          <ColumnDefinition Width="150" />
+                                          <ColumnDefinition Width="42" />
+                                          <ColumnDefinition Width="*" />
+                                      </Grid.ColumnDefinitions>
+                                      <TextBlock Grid.Column="0" Text="{Binding Stamp}" Style="{StaticResource T.Muted}" VerticalAlignment="Center" />
+                                      <TextBlock Grid.Column="1" Text="{Binding Tag}" Style="{StaticResource T.Label}" VerticalAlignment="Center" />
+                                      <TextBlock Grid.Column="2" Text="{Binding Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                  </Grid>
+                              </Border>
+                          </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+              </ScrollViewer>
+          </Border>
+
+          <TextBlock Grid.Row="3" Text="{Binding Lang[dash_logger_note]}" Style="{StaticResource T.Muted}"
+                     TextWrapping="Wrap" Margin="0,12,0,0" />
+      </Grid>
+  </DataTemplate>
+
+
 </ResourceDictionary>

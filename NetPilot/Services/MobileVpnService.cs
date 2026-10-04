@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using NetPilot.Core.Logging;
 using NetPilot.Models;
 
 namespace NetPilot.Services;
@@ -166,6 +167,7 @@ public sealed class MobileVpnService
     /// <summary>Full probe. Runs PowerShell on a background thread; never touches the UI.</summary>
     private async Task<MvState> DetectCoreAsync()
     {
+        Log.Debug("probe", "a full probe is starting; it spawns PowerShell and takes seconds");
         var state = new MvState { TakenAt = DateTime.Now };
 
         var (ok, output) = await Sys.PsStdoutAsync(DetectScript, 20000).ConfigureAwait(false);
@@ -390,22 +392,29 @@ public sealed class MobileVpnService
         // on our metrics while the UI said everything was back to normal.
         int restored = ReadCount(output, "RESTORED=");
         int failed = ReadCount(output, "FAILED=");
+
+        // The restore is the single most consequential thing this feature does - it is what
+        // puts someone's network back. Its outcome goes in the log at Warn rather than being
+        // left to the UI, because a machine left on our interface metrics looks exactly like
+        // a machine with a broken network and nobody can tell them apart without this line.
         if (restored <= 0 && failed > 0)
         {
-            // Deliberately leave IsSharing and the marker alone when the restore did not
-            // work: the machine may still carry our metrics, so the app still owes a
-            // restore and every later share must keep refusing to re-capture a snapshot
-            // over the top of it. Clearing them here would look tidier and would strand
-            // the machine on our settings with nothing left to repair it.
+            Log.Warn("tunnel", $"RESTORE FAILED: {failed} adapters refused, so this machine may " +
+                               "still carry our settings. Nothing was cleared, because a later " +
+                               "share must not capture the modified state as the original.");
             return MvResult.Fail("mv_restore_failed", output);
         }
 
         _proxyApplied = null;
         IsSharing = false;
         ClearMarker();
-        return failed > 0
-            ? MvResult.Fail("mv_restore_partial", $"restored {restored}, failed {failed}")
-            : MvResult.Success("mv_snapshot_restored");
+        if (failed > 0)
+        {
+            Log.Warn("tunnel", $"restore only partly succeeded: {restored} restored, {failed} refused");
+            return MvResult.Fail("mv_restore_partial", $"restored {restored}, failed {failed}");
+        }
+        Log.Info("tunnel", $"restore complete: {restored} adapters back to how the user had them");
+        return MvResult.Success("mv_snapshot_restored");
     }
 
     // ------------------------------------------------------------------ share
@@ -421,12 +430,20 @@ public sealed class MobileVpnService
         // detection came back empty (probe failure, VPN-only box), for no reason at all.
         // Route mode still needs the interface it is about to re-metric.
         if (method != MvMethod.Proxy && (link == null || link.IfIndex <= 0))
+        {
+            Log.Warn("tunnel", $"cannot share over '{method}': no usable interface was detected");
             return MvResult.Fail("mv_no_link");
+        }
 
         // Fresh, not cached: sharing rewrites interface metrics, so it must not act on an
         // answer that was measured before the last change.
         var probe = await DetectAsync(force: true).ConfigureAwait(false);
-        if (probe.PcVpnActive && !allowVpnChange) return MvResult.Fail("mv_blocked_vpn");
+        if (probe.PcVpnActive && !allowVpnChange)
+        {
+            Log.Warn("tunnel", "sharing refused: a PC VPN is connected, and changing it is " +
+                               "never done without the user asking for it");
+            return MvResult.Fail("mv_blocked_vpn");
+        }
 
         // Requirement: keep the current state before touching anything - but only the
         // FIRST time. Re-capturing while already sharing would record our own modified
@@ -435,17 +452,41 @@ public sealed class MobileVpnService
         // would be worst: it would snapshot our own numbers as the "original" ones.
         if (NeedsRestore)
         {
-            if (!HasSnapshot) return MvResult.Fail("mv_snapshot_none");
+            if (!HasSnapshot)
+            {
+                Log.Warn("tunnel", "cannot share: this app still owes a restore and the " +
+                                   "snapshot that would allow one is missing");
+                return MvResult.Fail("mv_snapshot_none");
+            }
+            Log.Info("tunnel", "already sharing; keeping the original snapshot rather than " +
+                               "capturing our own modified settings over it");
         }
         else
         {
             var snap = await CaptureSnapshotAsync().ConfigureAwait(false);
-            if (!snap.Ok) return snap;
+            if (!snap.Ok)
+            {
+                Log.Warn("tunnel", "cannot share: the original network state could not be " +
+                                   "captured, and nothing was changed");
+                return snap;
+            }
+            Log.Info("tunnel", "captured the current network state, so it can be put back");
         }
 
-        return method == MvMethod.Proxy
+        var result = method == MvMethod.Proxy
             ? await ApplyProxyAsync(link).ConfigureAwait(false)
             : await ApplyRouteAsync(link).ConfigureAwait(false);
+
+        if (result.Ok)
+        {
+            Log.Info("tunnel", $"sharing started over {method}" +
+                               (link != null && link.Name.Length > 0 ? " via " + link.Name : string.Empty));
+        }
+        else
+        {
+            Log.Warn("tunnel", $"sharing did not start: {result.Key} - {result.Detail}");
+        }
+        return result;
     }
 
     private static async Task<MvResult> ApplyRouteAsync(MvLink link)
