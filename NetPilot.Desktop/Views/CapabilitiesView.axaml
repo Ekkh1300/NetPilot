@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NetPilot.Desktop.Views.CapabilitiesView">
+  <StackPanel Spacing="16">
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Classes="h2" Text="What this machine can actually do" />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="Read from the platform, not from a feature list. Where a capability is missing the reason is given, because 'unavailable' without a reason is indistinguishable from a bug." />
+        <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding Capabilities}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="tile" Margin="0,0,0,6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding Feature}" FontWeight="SemiBold" />
+                    <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding Detail}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center"
+                             FontWeight="SemiBold" Foreground="{Binding Brush}"
+                             Text="{Binding State}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

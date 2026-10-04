@@ -1,0 +1,75 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NetPilot.Desktop.Views.DiagnosticsView">
+  <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+    <!-- the counters first, because they say whether the log below can be trusted -->
+    <Border Grid.Row="0" Classes="card" Margin="0,0,0,12">
+      <StackPanel Spacing="10">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="0" Spacing="3">
+            <TextBlock Classes="h2" Text="Diagnostics" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding Diagnostics.LogSummary}" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Copy for support" Command="{Binding Diagnostics.CopyDiagnostics}" />
+            <Button Content="Open log folder" Command="{Binding Diagnostics.OpenLogFolderCommand}" />
+          </StackPanel>
+        </Grid>
+
+        <Border Classes="tile">
+          <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto">
+            <TextBlock Grid.Column="0" Classes="caption" Text="log file" />
+            <TextBlock Grid.Column="1" Classes="caption" Margin="0,0,16,0"
+                       Text="{Binding Diagnostics.LogPath}" />
+            <TextBlock Grid.Column="2" Classes="caption" Margin="0,0,16,0"
+                       Text="{Binding Diagnostics.LogWritten}" />
+            <TextBlock Grid.Column="3" Classes="caption" Margin="0,0,16,0"
+                       Text="{Binding Diagnostics.LogDropped}" />
+            <TextBlock Grid.Column="4" Classes="caption" Text="{Binding Diagnostics.LogQueued}" />
+          </Grid>
+        </Border>
+
+        <!-- A non-zero drop or error count is shown in the warning colour rather than buried.
+             A log with a hole in it that looks healthy is worse than one that admits it. -->
+        <Border Classes="tile" IsVisible="{Binding Diagnostics.LogHasProblems}">
+          <TextBlock Classes="caption" Foreground="#FBBF24" TextWrapping="Wrap"
+                     Text="Entries were dropped or the file could not be written. The log below has a gap - which is why the counters are on the same page." />
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,*" Margin="0,0,0,12">
+      <ComboBox Grid.Column="0" ItemsSource="{Binding Diagnostics.LogLevels}" SelectedItem="{Binding Diagnostics.LogLevel}"
+                HorizontalAlignment="Left" MinWidth="150" />
+      <TextBox Grid.Column="1" Margin="10,0" Width="240"
+               Watermark="filter text" Text="{Binding Diagnostics.LogFilter}" />
+      <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                 Text="{Binding Diagnostics.LogEntryCount}" />
+    </Grid>
+
+    <Border Grid.Row="2" Classes="card">
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Diagnostics.LogLines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="tile" Margin="0,0,0,4" Padding="12,8">
+                <Grid ColumnDefinitions="168,44,*">
+                  <TextBlock Grid.Column="0" Classes="caption" FontFamily="Cascadia Mono,Consolas,DejaVu Sans Mono,monospace"
+                             VerticalAlignment="Center" Text="{Binding Stamp}" />
+                  <TextBlock Grid.Column="1" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"
+                             Foreground="{Binding LevelBrush}" Text="{Binding Tag}" />
+                  <TextBlock Grid.Column="2" FontSize="12" VerticalAlignment="Center" TextWrapping="Wrap"
+                             Text="{Binding Text}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </Border>
+
+    <TextBlock Grid.Row="3" Classes="caption" Margin="0,10,0,0" TextWrapping="Wrap"
+               Text="Pairing codes, tokens and hardware addresses are replaced before anything is written, so this log can be pasted into a support thread as it is." />
+  </Grid>
+</UserControl>

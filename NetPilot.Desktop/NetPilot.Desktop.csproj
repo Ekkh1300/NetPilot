@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The graphical build for Linux and macOS.
+
+    net8.0 plus Avalonia, which draws the same XAML on all three platforms. That is what makes
+    this verifiable at all: the interface is platform-neutral, so it can be run, screenshotted
+    and driven on a Windows machine - which is a real test of the XAML conversion, the layout
+    and the data binding - rather than shipped unseen. Only the native windowing underneath
+    differs, and that is Avalonia's own code.
+
+    Every control here is drawn or written from scratch for Avalonia. The WPF versions derive
+    from FrameworkElement and hand-paint themselves, so none of them could be reused as-is.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <RootNamespace>NetPilot.Desktop</RootNamespace>
+    <AssemblyName>NetPilot</AssemblyName>
+    <ApplicationManifest></ApplicationManifest>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <Version>1.2.2</Version>
+    <RuntimeIdentifiers>linux-x64;linux-arm64;osx-x64;osx-arm64;win-x64</RuntimeIdentifiers>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <!-- Avalonia's XAML compiler needs these; without them the build silently skips the
+         markup extension pipeline and styles resolve to nothing at runtime. -->
+    <AvaloniaXamlIlDebuggerLaunch>false</AvaloniaXamlIlDebuggerLaunch>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <!-- The WPF app draws its charts with WPF's DrawingContext; Avalonia's equivalent is
+         Skia, which these packages carry. -->
+    <PackageReference Include="SkiaSharp" Version="2.88.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NetPilot.Core\NetPilot.Core.csproj" />
+    <ProjectReference Include="..\NetPilot.Daemon\NetPilot.Daemon.csproj" />
+  </ItemGroup>
+
+</Project>

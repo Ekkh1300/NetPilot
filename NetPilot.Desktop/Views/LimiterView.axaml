@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:NetPilot.Desktop.Controls"
+             x:Class="NetPilot.Desktop.Views.LimiterView">
+  <StackPanel Spacing="16">
+
+    <Border Classes="card">
+      <StackPanel Spacing="10">
+        <TextBlock Classes="h2" Text="Limiter" />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="Per-application blocking and bandwidth limits. What is possible here depends on the operating system — this page says which, rather than offering switches that quietly do nothing." />
+
+        <Border Classes="tile" Margin="0,6,0,0">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="caption" Text="THIS MACHINE" />
+            <TextBlock FontWeight="SemiBold" Text="{Binding Support}" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Foreground="#FBBF24"
+                       IsVisible="{Binding !IsPrivileged}"
+                       Text="Not privileged: rules need root. Start the app with sudo to enable them." />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Classes="h2" Text="What the platform can enforce" />
+        <ItemsControl Margin="0,6,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="tile" Margin="0,0,0,6">
+                <Grid ColumnDefinitions="*,Auto">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding Feature}" FontWeight="SemiBold" />
+                    <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding Detail}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center"
+                             FontWeight="SemiBold" Foreground="{Binding Brush}"
+                             Text="{Binding State}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</UserControl>

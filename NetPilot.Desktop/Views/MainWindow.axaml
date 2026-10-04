@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:NetPilot.Desktop"
+        x:Class="NetPilot.Desktop.Views.MainWindow"
+        Title="NetPilot"
+        Width="1180" Height="780"
+        MinWidth="940" MinHeight="600"
+        Background="{StaticResource B.Bg}"
+        WindowStartupLocation="CenterScreen">
+
+  <Grid ColumnDefinitions="228,*">
+
+    <!-- ============ sidebar ============ -->
+    <Border Grid.Column="0" Background="{StaticResource B.Surface}"
+            BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel Grid.Row="0" Margin="18,20,18,16">
+          <StackPanel Orientation="Horizontal" Spacing="9">
+            <Ellipse Width="11" Height="11" Fill="{StaticResource B.Accent}" />
+            <TextBlock Text="NetPilot" FontSize="17" FontWeight="Bold" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Classes="caption" Margin="20,3,0,0"
+                     Text="{Binding PlatformName, StringFormat='graphical build · {0}'}" />
+        </StackPanel>
+
+        <ItemsControl Grid.Row="1" ItemsSource="{Binding Pages}" Margin="10,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Button Classes="nav"
+                      Click="OnNavClick"
+                      Tag="{Binding}">
+                <TextBlock Text="{Binding Title}" />
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- The privilege verdict is at the bottom because it decides what every page can do.
+             Hiding it would leave a page looking disabled with no explanation. -->
+        <Border Grid.Row="2" Margin="14,10,14,16" Padding="12,10" CornerRadius="9"
+                Background="{StaticResource B.SurfaceAlt}">
+          <StackPanel Spacing="4">
+            <TextBlock Classes="caption" Text="engine" />
+            <TextBlock FontSize="12" FontWeight="SemiBold" Text="Network stack access" />
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Text="{Binding IsPrivileged, StringFormat='privileged: {0}'}" />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Foreground="#FBBF24"
+                       IsVisible="{Binding !IsPrivileged}"
+                       Text="Blocking and limits need root." />
+            <TextBlock Classes="caption" TextWrapping="Wrap" Foreground="#34D399"
+                       IsVisible="{Binding IsPrivileged}"
+                       Text="rules can be applied" />
+          </StackPanel>
+        </Border>
+      </Grid>
+    </Border>
+
+    <!-- ============ content ============ -->
+    <Grid Grid.Column="1" RowDefinitions="Auto,*">
+      <Border Grid.Row="0" BorderBrush="{StaticResource B.Border}" BorderThickness="0,0,0,1"
+              Padding="24,16">
+        <StackPanel>
+          <TextBlock Classes="h1" Text="{Binding CurrentTitle}" />
+          <TextBlock Classes="caption" Text="{Binding Status}" />
+        </StackPanel>
+      </Border>
+
+      <ContentControl Grid.Row="1" Margin="24,20" Content="{Binding Current.View}" />
+    </Grid>
+  </Grid>
+</Window>

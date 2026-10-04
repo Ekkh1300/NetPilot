@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="using:NetPilot.Desktop.Controls"
+             x:Class="NetPilot.Desktop.Views.DashboardView">
+  <Grid RowDefinitions="Auto,Auto,*" >
+
+    <!-- three tiles: the same three the Windows dashboard leads with -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,*,*" Margin="0,0,0,16">
+      <Border Grid.Column="0" Classes="card" Margin="0,0,10,0">
+        <StackPanel Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="#38BDF8" />
+            <TextBlock Classes="caption" Text="DOWNLOAD" />
+          </StackPanel>
+          <TextBlock Classes="value" Text="{Binding RateDownText}" />
+          <TextBlock Classes="caption" Text="{Binding RateLinkName, StringFormat='on {0}'}" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="1" Classes="card" Margin="10,0">
+        <StackPanel Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="#818CF8" />
+            <TextBlock Classes="caption" Text="UPLOAD" />
+          </StackPanel>
+          <TextBlock Classes="value" Text="{Binding RateUpText}" />
+          <TextBlock Classes="caption" Text="{Binding RateLinkName, StringFormat='on {0}'}" />
+        </StackPanel>
+      </Border>
+
+      <Border Grid.Column="2" Classes="card" Margin="10,0,0,0">
+        <StackPanel Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Ellipse Width="9" Height="9" VerticalAlignment="Center" Fill="#34D399" />
+            <TextBlock Classes="caption" Text="PC VPN" />
+          </StackPanel>
+          <!-- Three states, colour-coded. "unknown" is deliberately its own colour: it is
+               neither a yes nor a no, and painting it either way would be a guess. -->
+          <TextBlock FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0"
+                     Foreground="{Binding PcVpnBrush}" Text="{Binding PcVpnText}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Grid.Row="1" Classes="card" Margin="0,0,0,16" Height="240">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Classes="h2" Text="Throughput, last minute" />
+        <c:SpeedChart Grid.Row="1" Margin="0,12,0,0"
+                      Points="{Binding History}"
+                      LineBrush="#38BDF8" FillBrush="#19324A" />
+      </Grid>
+    </Border>
+
+    <Border Grid.Row="2" Classes="card">
+      <Grid RowDefinitions="Auto,*">
+        <StackPanel Grid.Row="0" Spacing="3">
+          <TextBlock Classes="h2" Text="Interfaces" />
+          <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding LinkNames}" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="1" Margin="0,12,0,0">
+          <ItemsControl ItemsSource="{Binding Links}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <Border Classes="tile" Margin="0,0,0,6">
+                  <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                    <StackPanel Grid.Column="0">
+                      <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                      <TextBlock Classes="caption" Text="{Binding Description}" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center"
+                               Margin="0,0,14,0"
+                               Text="{Binding Kind, StringFormat='kind: {0}'}" />
+                    <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                               Margin="0,0,14,0"
+                               Text="{Binding Ipv4, StringFormat='ip: {0}'}" />
+                    <TextBlock Grid.Column="3" Classes="caption" VerticalAlignment="Center"
+                               Text="{Binding IsUp, StringFormat='up: {0}'}" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

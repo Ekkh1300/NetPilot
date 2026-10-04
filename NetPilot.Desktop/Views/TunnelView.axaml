@@ -1,0 +1,76 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NetPilot.Desktop.Views.TunnelView">
+  <StackPanel Spacing="16">
+
+    <Border Classes="card">
+      <StackPanel Spacing="10">
+        <TextBlock Classes="h2" Text="Phone Tunnel â†’ PC" />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="The Android app connects to this machine over the network, shares the phone's connection, and traffic from this computer is routed through it." />
+
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,4,0,0">
+          <Border Classes="tile">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="caption" Text="BRIDGE" />
+              <TextBlock FontWeight="SemiBold" Text="http://:8787/api/v1" FontSize="12" />
+            </StackPanel>
+          </Border>
+          <Border Classes="tile">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="caption" Text="PC VPN" />
+              <TextBlock FontWeight="SemiBold" Foreground="{Binding PcVpnBrush}"
+                         Text="{Binding PcVpnText}" FontSize="12" />
+            </StackPanel>
+          </Border>
+          <Border Classes="tile">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="caption" Text="UPLINK" />
+              <TextBlock FontWeight="SemiBold" Text="{Binding RateLinkName}" FontSize="12" />
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <StackPanel Spacing="8">
+        <TextBlock Classes="h2" Text="How to connect" />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="On the phone: Phone Tunnel â†’ PC. Point it at this machine's address and port 8787, then pair with the code it shows." />
+        <TextBlock Classes="caption" TextWrapping="Wrap"
+                   Text="Any of these carry the connection: Wi-Fi to the same network, a Wi-Fi hotspot, USB tethering, or adb over USB." />
+        <TextBlock Classes="caption" TextWrapping="Wrap" Foreground="#FBBF24"
+                   IsVisible="{Binding !IsPrivileged}"
+                   Text="Sharing through the system proxy needs root here. Without it the bridge still runs and status is still reported." />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="card">
+      <Grid RowDefinitions="Auto,*">
+        <TextBlock Grid.Row="0" Classes="h2" Text="Candidate links" />
+        <ItemsControl Grid.Row="1" Margin="0,12,0,0" ItemsSource="{Binding Links}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate>
+              <Border Classes="tile" Margin="0,0,0,6"
+                      IsVisible="{Binding IsUp}">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                    <TextBlock Classes="caption"
+                               Text="{Binding Ipv4, StringFormat='{}{0}'}" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1" Classes="caption" VerticalAlignment="Center"
+                             Margin="0,0,14,0"
+                             Text="{Binding Kind, StringFormat='{}{0}'}" />
+                  <TextBlock Grid.Column="2" Classes="caption" VerticalAlignment="Center"
+                             Text="{Binding Gateway, StringFormat='gateway {0}'}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+    </Border>
+  </StackPanel>
+</UserControl>

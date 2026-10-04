@@ -69,3 +69,7 @@ jobreport.txt
 all.log
 f.txt
 runid.txt
+gui.txt
+logcheck/
+b.txt
+x.txt	*.log

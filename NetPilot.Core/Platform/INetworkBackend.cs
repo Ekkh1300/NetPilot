@@ -18,15 +18,18 @@ namespace NetPilot.Services;
 public sealed class AppHandle
 {
     /// <summary>Executable path, when known.</summary>
-    public string Path = "";
+    public string Path { get; set; } = "";
+
     /// <summary>Unix uid, when known (Linux).</summary>
-    public int Uid = -1;
+    public int Uid { get; set; } = -1;
+
     /// <summary>macOS signing identifier or bundle id, when known.</summary>
-    public string BundleId = "";
-    public string DisplayName = "";
+    public string BundleId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
 
     /// <summary>How well the backend can actually enforce a rule on this target.</summary>
-    public RuleSupport Support = RuleSupport.None;
+    public RuleSupport Support { get; set; } = RuleSupport.None;
 
     public string Key => Path.Length > 0 ? Path : Uid >= 0 ? "uid:" + Uid : BundleId;
 }

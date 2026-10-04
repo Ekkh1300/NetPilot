@@ -1,0 +1,131 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="NetPilot.Desktop.App"
+             RequestedThemeVariant="Dark">
+
+  <!--
+    Colours are Resources; Styles live in Application.Styles. Putting a Style inside a
+    ResourceDictionary is a compile error in Avalonia - there is no setter to receive it - so
+    the two live in their own sections deliberately.
+  -->
+  <Application.Resources>
+    <ResourceDictionary>
+      <!-- The same palette as the Windows app, read off NetPilot\Themes\Dark.xaml, so the two
+           builds are recognisably one product rather than two things sharing a name. -->
+      <Color x:Key="C.Bg">#0B0F1A</Color>
+      <Color x:Key="C.Surface">#121A2A</Color>
+      <Color x:Key="C.SurfaceAlt">#18233A</Color>
+      <Color x:Key="C.Border">#1F2B41</Color>
+      <Color x:Key="C.Text">#E8EDF7</Color>
+      <Color x:Key="C.Text2">#93A1BC</Color>
+      <Color x:Key="C.Accent">#38BDF8</Color>
+      <Color x:Key="C.Accent2">#818CF8</Color>
+      <Color x:Key="C.Success">#34D399</Color>
+      <Color x:Key="C.Warning">#FBBF24</Color>
+      <Color x:Key="C.Danger">#F87171</Color>
+
+      <SolidColorBrush x:Key="B.Bg" Color="{StaticResource C.Bg}" />
+      <SolidColorBrush x:Key="B.Surface" Color="{StaticResource C.Surface}" />
+      <SolidColorBrush x:Key="B.SurfaceAlt" Color="{StaticResource C.SurfaceAlt}" />
+      <SolidColorBrush x:Key="B.Border" Color="{StaticResource C.Border}" />
+      <SolidColorBrush x:Key="B.Text" Color="{StaticResource C.Text}" />
+      <SolidColorBrush x:Key="B.Text2" Color="{StaticResource C.Text2}" />
+      <SolidColorBrush x:Key="B.Accent" Color="{StaticResource C.Accent}" />
+      <SolidColorBrush x:Key="B.Accent2" Color="{StaticResource C.Accent2}" />
+      <SolidColorBrush x:Key="B.Success" Color="{StaticResource C.Success}" />
+      <SolidColorBrush x:Key="B.Warning" Color="{StaticResource C.Warning}" />
+      <SolidColorBrush x:Key="B.Danger" Color="{StaticResource C.Danger}" />
+
+      <!-- Inter rather than Segoe UI: Segoe is a Windows font and is absent on Linux and macOS,
+           so the WPF build's fallback chain would render differently on every OS. -->
+      <FontFamily x:Key="F.Main">Inter</FontFamily>
+      <FontFamily x:Key="F.Mono">Cascadia Mono,Consolas,DejaVu Sans Mono,monospace</FontFamily>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+      <Setter Property="FontFamily" Value="{StaticResource F.Main}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- A card. The WPF build calls this a "tile"; same border, same radius. -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{StaticResource B.Surface}" />
+      <Setter Property="BorderBrush" Value="{StaticResource B.Border}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+
+    <Style Selector="Border.tile">
+      <Setter Property="Background" Value="{StaticResource B.SurfaceAlt}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="14,12" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="Background" Value="{StaticResource B.SurfaceAlt}" />
+      <Setter Property="Foreground" Value="{StaticResource B.Text}" />
+      <Setter Property="BorderBrush" Value="{StaticResource B.Border}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="16,9" />
+      <Setter Property="FontFamily" Value="{StaticResource F.Main}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="Button.accent">
+      <Setter Property="Background" Value="{StaticResource B.Accent}" />
+      <Setter Property="Foreground" Value="#06121C" />
+      <Setter Property="BorderBrush" Value="{StaticResource B.Accent}" />
+    </Style>
+
+    <Style Selector="Button.danger">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource B.Danger}" />
+      <Setter Property="BorderBrush" Value="{StaticResource B.Danger}" />
+    </Style>
+
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource B.SurfaceAlt}" />
+      <Setter Property="TextBlock.Foreground" Value="{StaticResource B.Text}" />
+    </Style>
+
+    <Style Selector="TextBlock.h1">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style Selector="TextBlock.caption">
+      <Setter Property="Foreground" Value="{StaticResource B.Text2}" />
+      <Setter Property="FontSize" Value="11.5" />
+    </Style>
+
+    <Style Selector="TextBlock.value">
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="FontFamily" Value="{StaticResource F.Mono}" />
+    </Style>
+  </Application.Styles>
+</Application>
