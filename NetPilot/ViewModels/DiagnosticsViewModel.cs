@@ -69,8 +69,15 @@ public sealed class DiagnosticsViewModel : PageVmBase
     public string Filter
     {
         get => _filter;
-        set { if (Set(ref _filter, value ?? "")) Refresh(); }
+        set { if (Set(ref _filter, value ?? "")) { Raise(nameof(FilterIsEmpty)); Refresh(); } }
     }
+
+    /// <summary>
+    /// Drives the search field's hint. Separate from testing <see cref="Filter"/> in the view,
+    /// because an empty string as a bound value is not distinguishable from "not set" - so a
+    /// hint written straight into the field would look like a search the user had typed.
+    /// </summary>
+    public bool FilterIsEmpty => _filter.Length == 0;
 
     public RelayCommand RefreshCommand { get; }
 

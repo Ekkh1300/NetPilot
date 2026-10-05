@@ -2055,7 +2055,7 @@
                   </Border>
 
                   <Border Background="{StaticResource B.SurfaceAlt}" CornerRadius="10" Padding="14,11" Margin="0,10,0,0"
-                          Visibility="{Binding HasProblems, Converter={StaticResource B.BoolToVisibility}}">
+                          Visibility="{Binding HasProblems, Converter={StaticResource BoolToVis}}">
                       <TextBlock Text="{Binding ProblemText}" Style="{StaticResource T.Muted}" TextWrapping="Wrap" />
                   </Border>
               </StackPanel>
@@ -2070,10 +2070,22 @@
               </Grid.ColumnDefinitions>
               <ComboBox Grid.Column="0" Style="{StaticResource S.ComboBox}" Width="150" Margin="0,0,10,0"
                         ItemsSource="{Binding Levels}" SelectedItem="{Binding Level}" />
-              <TextBox Grid.Column="1" Style="{StaticResource S.Input}" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" />
+              <!-- The hint sits under the text rather than in it: setting the field's own Text to the
+                       placeholder would make it a value the user then has to delete, and it
+                       would be indistinguishable from a real search term. -->
+                  <Grid Grid.Column="1">
+                      <TextBox Style="{StaticResource S.Input}" Text="{Binding Filter, UpdateSourceTrigger=PropertyChanged}" />
+                      <TextBlock Text="{Binding Lang[dash_logger_filter_hint]}" Style="{StaticResource T.Muted}"
+                                 Margin="12,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                 Visibility="{Binding FilterIsEmpty, Converter={StaticResource BoolToVis}}" />
+                  </Grid>
               <TextBlock Grid.Column="2" Text="{Binding EntryCountText}" Style="{StaticResource T.Muted}"
                          VerticalAlignment="Center" Margin="12,0,0,0" />
-              <Button Grid.Column="3" Content="{Binding Lang[st_refresh]}" Command="{Binding RefreshCommand}" Margin="10,0,0,0" />
+              <!-- "refresh" is the key that already exists and is already translated on every
+                       other page. Inventing "st_refresh" here put that literal string on the
+                       button, because Lang[key] returns the key when it is missing and the
+                       indexer treats that as a value rather than a fault. -->
+                  <Button Grid.Column="3" Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" Margin="10,0,0,0" />
           </Grid>
 
           <Border Grid.Row="2" Style="{StaticResource S.Card}">
