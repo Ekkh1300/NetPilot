@@ -2,13 +2,16 @@ package com.netpilot.mobile.pc
 
 import com.netpilot.mobile.core.AppGraph
 import com.netpilot.mobile.data.Store
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -337,9 +340,28 @@ object PcBridge {
      * owned by [com.netpilot.mobile.App], not by the screen, so leaving the Mobile VPN
      * page does not silently drop the link.
      */
+    /**
+     * Scope for the reporting loop.
+     *
+     * Held as a field and cancelled in [stopReporting], rather than the previous
+     * `CoroutineScope(Dispatchers.IO).launch` per call. A bare scope is orphaned the moment the
+     * job it launched is cancelled: nothing holds it, so it can never be cancelled as a unit and
+     * its coroutine context stays reachable from the dispatcher for as long as the process lives.
+     * Cancelling the returned job did stop the loop, so the visible behaviour was right - which
+     * is what made this easy to miss. A leak with no symptom is a leak until something else
+     * starts depending on it.
+     *
+     * Reused across calls rather than recreated, so a stop/start cycle cannot accumulate them.
+     */
+    private var reportScope: CoroutineScope? = null
+
     fun startReporting() {
         if (reporter?.isActive == true) return
-        reporter = kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+
+        val scope = reportScope ?: CoroutineScope(SupervisorJob() + Dispatchers.IO)
+            .also { reportScope = it }
+
+        reporter = scope.launch {
             while (isActive) {
                 val s = _state.value
                 if (s.paired) {
@@ -348,7 +370,7 @@ object PcBridge {
                     status()
                     // Reconcile after the status read: the desktop only ever does what it
                     // was last asked, so a proxy that is on has to be (re)applied whenever
-                    // its address moved — Wi-Fi roam, DHCP renewal — and one that went off
+                    // its address moved - Wi-Fi roam, DHCP renewal - and one that went off
                     // has to be taken off the PC again. status() runs first so a failure
                     // here is still the message the screen shows.
                     val now = _state.value
@@ -366,7 +388,13 @@ object PcBridge {
     fun stopReporting() {
         reporter?.cancel()
         reporter = null
+        // The scope goes too. It is recreated on the next startReporting, so nothing is lost, and
+        // the process does not keep a live dispatcher context alive for a loop that is not
+        // running.
+        reportScope?.cancel()
+        reportScope = null
     }
+
 
     // ------------------------------------------------------------------ transport
 

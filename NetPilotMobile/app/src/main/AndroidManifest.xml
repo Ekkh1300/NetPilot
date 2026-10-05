@@ -11,6 +11,11 @@
     <!-- Foreground service (VPN tunnel + live monitor) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- The VPN service's own type on Android 14+. Without this the startForeground call throws
+         ForegroundServiceStartNotAllowedException and the tunnel dies on start; the
+         FOREGROUND_SERVICE_SPECIAL_USE above is still needed by PcLinkService, which genuinely
+         is a specialUse service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
@@ -59,11 +64,23 @@
         </activity>
 
         <!-- Local tunnel: DNS manager / smart DNS / net limiter / firewall -->
+        <!--
+          specialUse, with the subtype declared below. Android 14 requires the type passed
+          to startForeground to match what the manifest declares, and lint enforces the
+          pairing of type with permission - so both here are load-bearing.
+
+          systemExempted was tried and is wrong: it is granted to apps that schedule exact
+          alarms or run a user-facing clock (USE_EXACT_ALARM / SCHEDULE_EXACT_ALARM), and
+          lint rejects it for a VPN outright. A VPN already holds BIND_VPN_SERVICE and has
+          been through the system's own consent dialog, so specialUse with a stated
+          subtype is the declaration the platform expects.
+        -->
         <service
             android:name=".vpn.NetPilotVpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            tools:targetApi="34">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>

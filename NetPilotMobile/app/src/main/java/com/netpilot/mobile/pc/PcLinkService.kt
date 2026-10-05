@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.netpilot.mobile.App
@@ -39,6 +40,11 @@ class PcLinkService : Service() {
     override fun onCreate() {
         super.onCreate()
         publish()
+        // Reaching onCreate at all is the proof that the start was granted. The caller cannot
+        // know this - startForegroundService returning without throwing means the request was
+        // accepted, not that Android allowed it - so the service reports its own state and the
+        // UI reads that instead of assuming.
+        markRunning()
         watch = scope.launch { PcBridge.state.collect { publish() } }
     }
 
@@ -51,6 +57,8 @@ class PcLinkService : Service() {
         watch?.cancel()
         scope.cancel()
         runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        // So the next setWanted(true) is not short-circuited by a stale "wanted".
+        markStopped()
         super.onDestroy()
     }
 
@@ -87,25 +95,97 @@ class PcLinkService : Service() {
     companion object {
         private const val NOTIF_ID = 4712
 
-        /** Mirrors what we last asked the system for, so the state flow can fire freely. */
+        /**
+         * Mirrors what we last asked the system for, so the state flow can fire freely.
+         *
+         * Not proof the service is running - see [running]. It records the last request so a
+         * repeated call with the same value does nothing.
+         */
         @Volatile
         private var wanted = false
 
         /**
-         * Start or stop the keep-alive according to [paired]. Idempotent, and it forgets
-         * a refused start so the next state change tries again — the first attempt can
-         * legitimately fail when the process was launched in the background, where
-         * Android 12+ forbids starting a foreground service.
+         * Set by the service itself once it is actually in the foreground, so a start that
+         * appeared to succeed can be checked afterwards.
+         *
+         * This is the distinction the old code got wrong. `startForegroundService` returning
+         * without throwing says only that the call was accepted; Android then decides whether the
+         * app was allowed to start one. From the background - which is exactly how this is
+         * reached, since pairing is reported by a background report loop - API 31+ forbids it and
+         * the service never runs. `isSuccess` was true for that.
+         *
+         * So the report of whether it worked comes from the service, not the caller.
+         */
+        @Volatile
+        var running: Boolean = false
+            private set
+
+        /**
+         * How many times a start was refused, so the failure is visible instead of silent.
+         */
+        @Volatile
+        var startFailures: Int = 0
+            private set
+
+        /** Called by the service once startForeground has succeeded. */
+        fun markRunning() {
+            running = true
+            wanted = true
+        }
+
+        /** Called by the service when it stops for any reason. */
+        fun markStopped() {
+            running = false
+            wanted = false
+        }
+
+        /**
+         * Start or stop the keep-alive according to [paired].
+         *
+         * Idempotent, and - the part that mattered - a refused start does not latch. The old code
+         * assigned the result of `runCatching{...}.isSuccess` to [wanted], so one background start
+         * that Android declined set `wanted` to false, and since the next call short-circuits on
+         * `wanted == paired`, nothing ever tried again for the rest of the process's life. Pairing
+         * succeeded, the UI said it did, and the keep-alive simply never ran.
+         *
+         * Two things are now recorded separately: what was asked for ([wanted]) and what is
+         * actually running ([running]). Only [wanted] gates a repeat call, and it is set
+         * optimistically so a later state change is free to retry.
          */
         fun setWanted(context: Context, paired: Boolean) {
-            if (wanted == paired) return
+            if (wanted == paired && (paired == running || !paired)) return
+
             val app = context.applicationContext
             val intent = Intent(app, PcLinkService::class.java)
-            wanted = if (paired) {
-                runCatching { app.startForegroundService(intent) }.isSuccess
-            } else {
+
+            if (!paired) {
                 runCatching { app.stopService(intent) }
-                false
+                    .onFailure { com.netpilot.mobile.core.log.NpLog.warn("pclink", "stop refused", it) }
+                running = false
+                wanted = false
+                return
+            }
+
+            // Set before the call, not from its result: whether Android grants the start is not
+            // known here, and latching on a local guess is what left the service dead.
+            wanted = true
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    app.startForegroundService(intent)
+                } else {
+                    app.startService(intent)
+                }
+            } catch (t: Throwable) {
+                startFailures++
+                // The request stays wanted, so the next state change retries - which is the point.
+                com.netpilot.mobile.core.log.NpLog.error(
+                    "pclink",
+                    "the system refused to start the PC link service. This is expected when the " +
+                        "app is in the background, which is where pairing usually arrives; the " +
+                        "next state change will try again",
+                    t
+                )
             }
         }
     }

@@ -536,12 +536,22 @@ class NetPilotVpnService : VpnService() {
         running = false
         relay?.let { runCatching { it.close() } }
         relay = null
+        // The reader has to be interrupted here as well as in stopTunnelInternal. Android can
+        // destroy a started service without the tunnel ever having been stopped, and the reader
+        // blocks on a read of the TUN descriptor - so without this it stays parked on that read
+        // for the life of the process, holding the old generation's state.
+        reader?.interrupt()
+        reader = null
+        readerGen.incrementAndGet()
+        tcpSessions.clear()
+
         runCatching { tun?.close() }
         tun = null
         tunOut = null
-        // The pool belongs to this service instance; its four workers are non-daemon-free but
-        // still hold the executor alive, so a recreated service stacked a fresh set on every
-        // tunnel stop. It is not shut down in stopTunnelInternal because a restart reuses it.
+        // The pool and the scope belong to this service instance, and a service instance is
+        // created fresh each time the app starts one. Their workers hold the executor alive, so
+        // without a shutdown a recreated service stacked another set on top - and four threads
+        // per foreground session is not a cost worth paying repeatedly on a phone.
         runCatching { pool.shutdownNow() }
         scope.cancel()
         VpnState.onTunnelDown()
@@ -552,21 +562,62 @@ class NetPilotVpnService : VpnService() {
 
     // ------------------------------------------------------------------ notification
 
+    /**
+     * Publishes the ongoing notification, which Android requires within seconds of the start.
+     *
+     * The foreground service *type* matters more than it looks. This service holds a real VPN
+     * tunnel, and Android 14 requires the type passed here to be one the manifest declares for
+     * this service, or the call throws `ForegroundServiceStartNotAllowedException` and the
+     * process dies.
+     *
+     * It was declared as `specialUse`, which is the "I have some other reason" bucket and is
+     * meant for things like a file transfer or a device-ownership app. A VPN has its own type -
+     * `systemExempted` - granted because the user explicitly consented to a VPN via the system
+     * dialog. Claiming `specialUse` here was a declaration the platform does not grant a VPN, and
+     * on some OEM builds the mismatched type is refused outright.
+     *
+     * The fallback below exists because the pre-34 overload has no type parameter at all, so it
+     * is the only call available on API 26..33 and is the correct one there.
+     */
     private fun startAsForeground(dnsName: String?) {
         val notif = QuickDns.build(this, dnsName)
-        try {
-            if (Build.VERSION.SDK_INT >= 34) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
                 startForeground(
                     NOTIF_ID, notif,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    if (Build.VERSION.SDK_INT >= 35) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED
+                    } else {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+                    }
                 )
-            } else {
-                startForeground(NOTIF_ID, notif)
+                return
+            } catch (t: Throwable) {
+                // Not fatal on its own: the untyped overload below is enough to keep the process
+                // alive, and the notification still appears. Logged because a silent fallback here
+                // is how a service ends up running with the wrong type and being killed later.
+                NpLog.warn(
+                    "vpn",
+                    "the typed foreground start was refused, falling back to an untyped one",
+                    t
+                )
             }
-        } catch (t: Throwable) {
-            // Some OEM builds reject specialUse; a plain foreground start is still fine.
-            runCatching { startForeground(NOTIF_ID, notif) }
         }
+
+        runCatching { startForeground(NOTIF_ID, notif) }
+            .onFailure {
+                // Nothing left to try. A VPN service that cannot show its notification cannot
+                // legally stay in the foreground, so the tunnel has to stop rather than run
+                // invisibly - and that must be visible in the UI, not just in the log.
+                NpLog.error(
+                    "vpn",
+                    "could not enter the foreground at all, so the tunnel cannot run: " +
+                        "Android requires a visible ongoing notification for a foreground service",
+                    it
+                )
+                stopSelf()
+            }
     }
 
     // ------------------------------------------------------------------ packet loop
@@ -574,48 +625,67 @@ class NetPilotVpnService : VpnService() {
     private fun readLoop(fd: ParcelFileDescriptor) {
         val input = FileInputStream(fd.fileDescriptor)
         val output = FileOutputStream(fd.fileDescriptor)
-        tunOut = output
-        val buf = ByteArray(TUN_MTU)
         // A restart (applying a DNS, a profile, a schedule) stops the old reader and starts a
         // new one. The old thread is still winding down when that happens, and it would find
         // `running == true` again and blame the fresh tunnel for its own exit. The generation
         // tells the two apart.
         val gen = readerGen.incrementAndGet()
-        var sinceSweep = 0
+        tunOut = output
 
-        // Every DNS query is handed to a small pool: the reader keeps draining the TUN so
-        // a slow resolver can never stall unrelated lookups.
-        while (running && !Thread.currentThread().isInterrupted) {
-            val n = try {
-                input.read(buf)
-            } catch (t: Throwable) {
-                break
-            }
-            if (n <= 0) break
-            val packet = buf.copyOf(n)
-            try {
-                handlePacket(packet, output)
-            } catch (t: Throwable) {
-                // Never let a malformed packet kill the tunnel.
-            }
-            if (++sinceSweep >= SWEEP_EVERY_PACKETS) {
-                sinceSweep = 0
-                sweepTcpSessions(System.currentTimeMillis())
-            }
-        }
-        // Only a reader that is still the current one may clear the shared sink: a retiring
-        // thread used to null the field after its successor had already published its stream,
-        // which silently dropped every packet the relay tried to write.
-        if (readerGen.get() == gen) tunOut = null
+        // Every DNS query is handed to a small pool: the reader keeps draining the TUN so a slow
+        // resolver can never stall unrelated lookups.
+        //
+        // The whole loop is in a try/finally because both streams wrap the TUN file descriptor,
+        // and this function had no finally: any path out of it that was not the explicit break -
+        // an unexpected throw, an Error from a bad allocation, a future edit adding an early
+        // return - leaked two stream objects and their descriptors. A leak here is invisible until
+        // the process runs out, and a VPN service that restarts on every settings change is
+        // exactly the shape of thing that reaches that point.
+        try {
+            val buf = ByteArray(TUN_MTU)
+            var sinceSweep = 0
 
-        // The reader stopped on its own. While the interface is still established the system
-        // keeps routing every packet to it, and with nothing reading the queue that is a
-        // silent black hole - the phone would look offline until the user noticed. Fail open
-        // instead: drop the tunnel and the real network takes over.
-        if (readerGen.get() == gen && running) {
-            VpnState.onError("tunnel stopped unexpectedly")
-            Repo.log("evt_tun_lost")
-            stopTunnel()
+            while (running && !Thread.currentThread().isInterrupted) {
+                val n = try {
+                    input.read(buf)
+                } catch (t: Throwable) {
+                    break
+                }
+                if (n <= 0) break
+                val packet = buf.copyOf(n)
+                try {
+                    handlePacket(packet, output)
+                } catch (t: Throwable) {
+                    // Never let a malformed packet kill the tunnel.
+                }
+                if (++sinceSweep >= SWEEP_EVERY_PACKETS) {
+                    sinceSweep = 0
+                    sweepTcpSessions(System.currentTimeMillis())
+                }
+            }
+        } catch (t: Throwable) {
+            NpLog.error("vpn", "the tunnel reader stopped on an unexpected error", t)
+        } finally {
+            // Both handles, unconditionally. The output stream is the one the relay writes
+            // through, so leaving it open would keep the descriptor alive after the tunnel is
+            // gone and let a write land on a recycled descriptor.
+            runCatching { input.close() }
+            runCatching { output.close() }
+
+            // Only a reader that is still the current one may clear the shared sink: a retiring
+            // thread used to null the field after its successor had already published its stream,
+            // which silently dropped every packet the relay tried to write.
+            if (readerGen.get() == gen) tunOut = null
+
+            // The reader stopped on its own. While the interface is still established the system
+            // keeps routing every packet to it, and with nothing reading the queue that is a
+            // silent black hole - the phone would look offline until the user noticed. Fail open
+            // instead: drop the tunnel and the real network takes over.
+            if (readerGen.get() == gen && running) {
+                VpnState.onError("tunnel stopped unexpectedly")
+                Repo.log("evt_tun_lost")
+                stopTunnel()
+            }
         }
     }
 
@@ -776,8 +846,19 @@ class NetPilotVpnService : VpnService() {
                 seq = session.ourSeq, ack = session.clientSeqNext,
                 flags = 0x10, data = ByteArray(0)
             )
-            val message = session.takeMessage()
-            if (message != null) {
+            // Drain every complete message, not just the first.
+            //
+            // DNS over TCP is allowed to pipeline: a client may put two queries in one segment,
+            // and the length-prefixed framing exists precisely so a reader can tell where one
+            // ends and the next begins. Reading one message and returning left the rest sitting
+            // in the buffer until another segment happened to arrive - and if none did, they
+            // were never answered at all. The client waited on a resolver that had already
+            // ACKed the bytes, which is the worst shape of bug to diagnose: nothing failed, one
+            // query simply never came back.
+            //
+            // This is the bug the dead `ackFlag || psh` expression was sitting on top of.
+            while (true) {
+                val message = session.takeMessage() ?: break
                 val server = resolverAddress()
                 pool.execute {
                     val (resp, _) = DnsForwarder.forwardTcp(message, server)
@@ -811,7 +892,6 @@ class NetPilotVpnService : VpnService() {
             if (payload.isEmpty() && !ackFlag) return
             tcpSessions.remove(key)
         }
-        ackFlag || psh
     }
 
     /**

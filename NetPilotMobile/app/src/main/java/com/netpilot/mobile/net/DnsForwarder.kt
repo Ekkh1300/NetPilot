@@ -183,8 +183,32 @@ object DnsForwarder {
         answer
     }
 
-    /** One query/response round trip, answer bytes untouched. */
+    /**
+     * One query/response round trip, answer bytes untouched.
+     *
+     * The transaction id is verified before the answer is accepted, and a mismatch is waited out
+     * rather than treated as a reply.
+     *
+     * UDP has no connection, so a socket receives whatever arrives on that port - including a
+     * late answer to a query sent seconds ago, a spoofed packet from anyone on the path, or an
+     * off-path injection when the source port is predictable. `receive` returned the first
+     * packet it saw, so any of those became this app's answer for a query it never asked, and
+     * the caller could not tell: the bytes were a syntactically valid DNS response.
+     *
+     * That is a real attack against a phone, not a theoretical one - the phone is on hostile
+     * wifi by definition of the feature it provides. The id check is what RFC 1035 requires and
+     * what every resolver does; its absence was an oversight, not a choice.
+     *
+     * A mismatch is not an error either: the socket may be shared with a sibling attempt in this
+     * same lookup (the caller races several servers), so the packet belongs to someone else and
+     * the right move is to keep reading until the deadline.
+     */
     private fun attempt(query: ByteArray, server: String, port: Int, timeoutMs: Int): ByteArray? {
+        if (query.size < 2) return null
+        val wantedIdHi = query[0]
+        val wantedIdLo = query[1]
+        val deadline = System.currentTimeMillis() + timeoutMs
+
         return try {
             DatagramSocket().use { sock ->
                 onUdpSocket?.invoke(sock)
@@ -195,19 +219,53 @@ object DnsForwarder {
                         InetSocketAddress(java.net.InetAddress.getByName(server), port)
                     )
                 )
-                val buf = ByteArray(8192)
-                val packet = DatagramPacket(buf, buf.size)
-                sock.receive(packet)
-                val resp = buf.copyOf(packet.length)
 
-                if (resp.size > 3 && (resp[2].toInt() and 0x02) != 0) {
+                val buf = ByteArray(8192)
+                var resp: ByteArray? = null
+
+                while (System.currentTimeMillis() < deadline) {
+                    val packet = DatagramPacket(buf, buf.size)
+                    try {
+                        sock.receive(packet)
+                    } catch (e: java.net.SocketTimeoutException) {
+                        break
+                    } catch (e: java.net.PortUnreachableException) {
+                        // ICMP port unreachable: this server is not answering. Stop rather than
+                        // spin on a closed port.
+                        break
+                    }
+
+                    val candidate = buf.copyOf(packet.length)
+
+                    // Too short to be a DNS header, so it cannot be our answer.
+                    if (candidate.size < 12) continue
+
+                    if (candidate[0] != wantedIdHi || candidate[1] != wantedIdLo) {
+                        // Not ours. Logged, because a stream of these is either a sibling
+                        // attempt landing here or something on the path answering.
+                        com.netpilot.mobile.core.log.NpLog.debug(
+                            "dns",
+                            "discarded a reply with transaction id " +
+                                "${(candidate[0].toInt() and 0xFF) shl 8 or (candidate[1].toInt() and 0xFF)} " +
+                                "while waiting for ${(wantedIdHi.toInt() and 0xFF) shl 8 or (wantedIdLo.toInt() and 0xFF)}"
+                        )
+                        continue
+                    }
+
+                    resp = candidate
+                    break
+                }
+
+                val answer = resp ?: return null
+
+                if (answer.size > 3 && (answer[2].toInt() and 0x02) != 0) {
                     // Truncated: prefer the full answer over TCP, but never throw away a
                     // reply we already have when TCP is refused - a network that filters
                     // port 53/TCP would otherwise turn a working (short) answer into a
                     // resolver timeout for the app.
-                    tcpExchange(query, server, port, timeoutMs) ?: resp
+                    tcpExchange(query, server, port, timeoutMs) ?: answer
                 } else {
-                    resp
+                    answer
                 }
             }
         } catch (t: Throwable) {

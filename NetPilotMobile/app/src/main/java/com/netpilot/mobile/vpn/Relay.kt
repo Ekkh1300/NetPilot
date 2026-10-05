@@ -653,14 +653,33 @@ internal class Relay(
         return true
     }
 
-    /** Reads server data into the per-flow buffer; pauses the channel when it fills up. */
+    /**
+     * Reads server data into the per-flow buffer; pauses the channel when it fills up.
+     *
+     * The scratch buffer is allocated at the full [MAX_READ] every time rather than at
+     * `capacityLeft`. Sizing it to the free space looked like the cheaper choice and was the
+     * wrong one for a reason that is easy to miss: `ByteBuffer.allocate` hands back uninitialised
+     * memory, so a short read leaves the tail as whatever the previous flow left there. `flip()`
+     * then sets the limit to the number of bytes actually read, which is what makes it correct -
+     * but only because the *count* is trusted. Any path that used `capacity` instead of the read
+     * count would ship another flow's bytes.
+     *
+     * Allocating once per flow rather than per read keeps that guarantee obvious: the buffer is
+     * a field, it is always cleared, and every read writes exactly the count it reports.
+     */
     private fun readServer(f: TcpFlow): Boolean {
         val ch = f.channel ?: return false
-        val tmp = ByteBuffer.allocate(min(MAX_READ, f.down.capacityLeft.coerceAtLeast(0)))
-        if (tmp.capacity() == 0) {
+
+        val space = f.down.capacityLeft.coerceAtLeast(0)
+        if (space == 0) {
             suspendRead(f)
             return false
         }
+
+        val want = min(MAX_READ, space)
+        val tmp = ByteBuffer.allocate(want)
+        tmp.clear()                 // position 0, limit = capacity; never carries stale state
+
         val n = ch.read(tmp)
         if (n < 0) {
             synchronized(lock) {
@@ -671,15 +690,33 @@ internal class Relay(
             return true
         }
         if (n == 0) return false
-        tmp.flip()
+
+        // Take exactly n bytes from position 0. Never limit/capacity: that is the distinction
+        // between reading what arrived and reading whatever the allocation happened to contain.
         val bytes = ByteArray(n)
+        tmp.position(0)
+        tmp.limit(n)
         tmp.get(bytes)
         synchronized(lock) {
             if (!recheck(f, System.currentTimeMillis())) {
                 rejectFlow(f)
                 return true
             }
-            f.down.append(bytes, 0, bytes.size)
+            if (!f.down.append(bytes, 0, bytes.size)) {
+                // The flow is at its cap and the bytes are unacknowledged, so there is nowhere
+                // to put them. Resetting is the only correct answer: silently skipping would put a
+                // hole in the byte stream that the client cannot distinguish from corruption,
+                // and it would spend the rest of the connection re-requesting instead of
+                // reconnecting.
+                com.netpilot.mobile.core.log.NpLog.warn(
+                    "vpn",
+                    "dropping a TCP flow that reached ${Relay.MAX_DOWN} bytes without " +
+                        "acknowledging any of it; a peer that never acknowledges is bounded here " +
+                        "rather than allowed to consume the phone's memory"
+                )
+                rejectFlow(f)
+                return true
+            }
             f.lastActivity = System.currentTimeMillis()
             flushDown(f)
             if (f.down.capacityLeft <= 0) suspendRead(f)
@@ -876,7 +913,13 @@ internal class Relay(
     }
 
     private fun readUdp(flow: UdpFlow): Boolean {
+        // allocate() is uninitialised memory, so the read count is what gets taken - never the
+        // capacity. See readServer for the full reasoning; this is the same rule in the datagram
+        // path, and a datagram shorter than the buffer is the normal case rather than the
+        // exception, so relying on it here would be the same bug with a much higher hit rate.
         val tmp = ByteBuffer.allocate(MAX_READ)
+        tmp.clear()
+
         val n = try {
             flow.channel.read(tmp)
         } catch (t: Throwable) {
@@ -887,8 +930,10 @@ internal class Relay(
             return false
         }
         if (n <= 0) return false
-        tmp.flip()
+
         val bytes = ByteArray(n)
+        tmp.position(0)
+        tmp.limit(n)
         tmp.get(bytes)
         synchronized(lock) {
             if (!recheck(flow, System.currentTimeMillis())) {
@@ -972,8 +1017,14 @@ internal class Relay(
         }
     }
 
+    /**
+     * Per-flow receive buffer.
+     *
+     * `start` is the first unacknowledged byte, `sent` the first not yet handed to the TUN.
+     * [compact] drops acknowledged bytes so a long flow keeps a bounded footprint.
+     */
     private class Down(initialSeq: Long) {
-        var buf = ByteArray(16_384)
+        private var buf = ByteArray(16_384)
         var base = initialSeq and 0xFFFFFFFFL   // sequence number of buf[0]
         var start = 0                          // first byte not yet acknowledged
         var sent = 0                           // first byte not yet transmitted
@@ -983,14 +1034,65 @@ internal class Relay(
         val unsent: Int get() = end - sent
         val capacityLeft: Int get() = MAX_DOWN - pending
 
-        fun append(src: ByteArray, off: Int, len: Int) {
-            if (len <= 0) return
-            if (end + len > buf.size) {
-                compact()
-                if (end + len > buf.size) buf = buf.copyOf(maxOf(buf.size * 2, end + len))
+        /**
+         * Set when data had to be refused because the flow was already at its cap.
+         *
+         * The read side respects [MAX_DOWN] through [capacityLeft], so overflowing is not the
+         * normal case - but it is reachable, and the reason is worth stating because the buffer
+         * had no bound at all before: [compact] only reclaims *acknowledged* bytes, so a client
+         * that never acknowledges anything leaves `start` at zero, compaction does nothing, and
+         * `append` doubled the array on every read until the phone ran out of memory. One peer,
+         * one flow, no cooperation required.
+         *
+         * Dropping the bytes silently would be worse: TCP is a byte stream, so a gap is
+         * indistinguishable from corruption to the client, and it would spend the rest of the
+         * connection re-requesting. Resetting the flow is the honest signal.
+         */
+        var overflowed = false
+            private set
+
+        /**
+         * Appends, refusing when the flow is already at its cap.
+         *
+         * Returns false when the caller must reset the flow. The data is not copied in that case,
+         * so nothing half-entered the buffer.
+         */
+        fun append(src: ByteArray, off: Int, len: Int): Boolean {
+            if (len <= 0) return true
+
+            // Compact *before* checking the cap, not only when the array is full.
+            //
+            // The previous order checked `pending + len > MAX_DOWN`, compacted if that failed, and
+            // then separately compacted again if `end + len > buf.size`. Compaction moves `end`
+            // down but does not change `pending` - pending is `end - start`, and both move by the
+            // same amount - so a flow whose acknowledged bytes were sitting in the middle of the
+            // array could reach the cap while `end + len` was still inside `buf.size`, hit the
+            // refusal branch, compact, find `pending` unchanged, and reject the flow that was
+            // about to fit. A test caught this at 16 KB against an 8 KB cap.
+            //
+            // Compacting unconditionally when anything is acknowledged is cheap - it is a
+            // memmove of the unacknowledged tail, usually zero bytes - and it makes the bound
+            // depend only on how much the client has actually acknowledged, which is the thing
+            // the cap is meant to model.
+            if (start > 0) compact()
+
+            if (pending + len > MAX_DOWN) {
+                overflowed = true
+                return false
             }
+
+            if (end + len > buf.size) {
+                // Grow only as far as the cap. The previous `maxOf(size * 2, end + len)` had no
+                // ceiling, so the doubling walked straight past MAX_DOWN on the way to whatever
+                // the next read happened to be - which is how a peer that never acknowledges
+                // could grow the buffer without limit.
+                val want = maxOf(buf.size * 2, end + len)
+                buf = buf.copyOf(minOf(want, MAX_DOWN).coerceAtLeast(end + len))
+            }
+
             System.arraycopy(src, off, buf, end, len)
             end += len
+            return true
         }
 
         fun ack(seq: Long) {
@@ -1006,7 +1108,13 @@ internal class Relay(
 
         fun slice(from: Int, len: Int): ByteArray = buf.copyOfRange(from, from + len)
 
-        /** Drops acknowledged bytes so a long-lived flow keeps a bounded footprint. */
+        /**
+         * Drops acknowledged bytes.
+         *
+         * A no-op when nothing has been acknowledged, and that is correct rather than a bug:
+         * unacknowledged bytes are still owed to the client, so there is nothing to reclaim.
+         * [append] is what enforces the bound in that case.
+         */
         fun compact() {
             if (start <= 0) return
             val n = start

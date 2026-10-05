@@ -4,6 +4,8 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -117,20 +119,72 @@ class Store(context: Context) {
         }
     }
 
+    /**
+     * Writes one document, atomically.
+     *
+     * Written to a temporary file and renamed into place rather than written in place, because a
+     * write interrupted by the process dying leaves a half-written file, and a half-written JSON
+     * document does not parse - so the next launch would rename it to `.bad` and start from an
+     * empty store. The rename is atomic on every filesystem Android uses, so a reader sees either
+     * the old file or the new one.
+     *
+     * The temporary file is then fsync'd, and so is the directory. Both are load-bearing and both
+     * were missing.
+     *
+     * fsync on the file: without it, `writeText` returns as soon as the bytes are in the page
+     * cache, and a power loss or a hard reboot can leave a file that was renamed into place and
+     * is nonetheless empty or torn. The rename had already succeeded by then, so nothing would
+     * have retried it - the data would simply be gone, and the next launch would find unparseable
+     * JSON and quietly reset the store.
+     *
+     * fsync on the directory: the rename itself is a metadata operation, and it is the metadata
+     * that must survive, not the file's contents. Without this the file's *name* can be lost even
+     * when its bytes are not - which is why this step is not redundant with the one above. Neither
+     * is cheap, which is why this runs from the debounced flush and not per write.
+     *
+     * A failure is logged rather than swallowed. The original `catch (_: Throwable)` discarded
+     * the exception entirely, so a full disk or a read-only directory was invisible: the document
+     * stayed dirty, the flush retried, and the user saw settings they had changed simply not
+     * persist, with no indication of why.
+     */
     private fun persistLocked(name: String, d: JSONObject) {
         var saved = false
         try {
             val target = file(name)
             val tmp = File(dir, "np_$name.tmp")
             tmp.writeText(d.toString(), Charsets.UTF_8)
+
+            // The bytes, before the rename makes the file visible under its real name.
+            FileOutputStream(tmp).use { it.fd.sync() }
+
             if (!tmp.renameTo(target)) {
                 target.delete()
                 saved = tmp.renameTo(target)
             } else {
                 saved = true
             }
-        } catch (_: Throwable) {
-            // Never crash the app over a persistence hiccup; the in-memory copy stays valid.
+
+            // The rename itself. Skipped on a failure above, since there is nothing to record.
+            if (saved) {
+                runCatching {
+                    FileInputStream(dir).use { it.fd.sync() }
+                }.onFailure {
+                    // A filesystem that refuses to sync a directory is unusual and not fatal: the
+                    // contents are already durable, so only the rename's durability is at stake.
+                    com.netpilot.mobile.core.log.NpLog.debug(
+                        "store",
+                        "the directory could not be fsync'd after renaming $name; " +
+                            "the contents are durable but the rename may not survive a hard reboot"
+                    )
+                }
+            }
+        } catch (t: Throwable) {
+            com.netpilot.mobile.core.log.NpLog.warn(
+                "store",
+                "could not persist '$name'; the change is in memory only and the next flush " +
+                    "will retry it. If this repeats, the app's data directory is not writable",
+                t
+            )
         }
         // Only a document that really reached the disk counts as clean. Marking it clean on a
         // failed write made flush() a no-op afterwards, so a full disk silently diverged the
