@@ -47,6 +47,30 @@ NetPilotMobile/app/build/
 !docs/**/*.png
 p7-diagnostics.png
 
+# ---------------------------------------------------------------- signing credentials
+# The release keystore, and the file holding its passwords.
+#
+# Anyone holding this keystore can ship an APK that Android installs as though it came from
+# us, with our package name and our signature, and it cannot be withdrawn by publishing a new
+# version. Both files were committed once in a public repository; they are untracked now and
+# the commit was rewritten, but a published blob cannot be recalled.
+#
+# See docs\KEYSTORE-ROTATION.md. The existing key has to be replaced.
+NetPilotMobile/keystore.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+
+# ---------------------------------------------------------------- verification output
+# Re-created by running the thing that produces it, so it is never worth history.
+NetPilot/healthcheck.txt
+/logcheck/
+/selftest.txt
+/selftest-hold.txt
+/st-*.png
+/langcheck.txt
+
 # ---------------------------------------------------------------- IDE
 .idea/
 *.swp
