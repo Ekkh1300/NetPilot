@@ -55,6 +55,28 @@ object Strings {
         // somebody's VPN (mv_pc_vpn_*, mv_blocked_vpn) keep the word.
         "menu_mobile_vpn" to ("Phone Tunnel → PC" to "تونل گوشی → PC"),
         "menu_settings" to ("Settings" to "تنظیمات"),
+        "menu_diagnostics" to ("Diagnostics" to "عیب‌یابی"),
+
+        // ---- diagnostics / the log
+        // Real Persian rather than English in both columns. The desktop's diagnostics page
+        // shipped with English on both sides and stayed English inside an otherwise Persian app,
+        // reading as finished - which is what this set of strings is here to avoid.
+        //
+        // The counter labels are written so the number follows the word, which is the Persian
+        // order; a transliteration of "dropped: 0" would put the colon and number where a
+        // Persian reader does not expect them.
+        "diag_title" to ("Diagnostics" to "عیب‌یابی"),
+        "diag_copy" to ("Copy report" to "کپی گزارش"),
+        "diag_path" to ("Log file:" to "فایل لاگ:"),
+        "diag_path_none" to (
+            "(memory only - no writable directory)" to "(فقط در حافظه — پوشهٔ قابل نوشتنی نیست)"
+        ),
+        "diag_written" to ("written" to "نوشته"),
+        "diag_dropped" to ("dropped" to "افتاده"),
+        "diag_queued" to ("queued" to "در صف"),
+        "diag_errors" to ("errors" to "خطا"),
+        "diag_filter_hint" to ("Search the log text" to "جست‌وجو در متن لاگ"),
+        "diag_empty" to ("Nothing logged at this level yet. The app writes here as it runs; if you were expecting an error, switch the level down to TRACE." to "در این سطح چیزی ثبت نشده است. اپ هنگام کار اینجا می‌نویسد؛ اگر منتظر خطا بودید، سطح را روی TRACE بگذارید."),
 
         // ---- common actions
         "apply" to ("Apply" to "اعمال"),

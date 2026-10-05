@@ -414,6 +414,25 @@ object NpLog {
         return Redactor.apply(sb.toString())
     }
 
+    /** All four counters, read together.
+     *
+     * Read as one snapshot rather than one property at a time: the screen shows all four, and if
+     * it read them separately a burst could land in between and produce a set that never was -
+     * "dropped 0, written 5000" - which reads as a healthy log and is not one. */
+    fun counters(): Counters = Counters(
+        written.get(),
+        dropped.get(),
+        queue.size,
+        writeFailures.get()
+    )
+
+    data class Counters(
+        val written: Long,
+        val dropped: Long,
+        val queued: Int,
+        val writeFailures: Long,
+    )
+
     /** Flushes and stops the writer. The queue is completed and replaced rather than reused,
      *  so a later [configure] still works - a logger that dies on shutdown is a logger that
      *  goes quiet on the next settings change. */

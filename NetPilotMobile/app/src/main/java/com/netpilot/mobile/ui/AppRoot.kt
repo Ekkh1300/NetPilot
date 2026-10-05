@@ -48,6 +48,7 @@ import com.netpilot.mobile.ui.components.NpTopBar
 import com.netpilot.mobile.ui.screens.AdaptersScreen
 import com.netpilot.mobile.ui.screens.BenchScreen
 import com.netpilot.mobile.ui.screens.DashboardScreen
+import com.netpilot.mobile.ui.screens.DiagnosticsScreen
 import com.netpilot.mobile.ui.screens.DnsScreen
 import com.netpilot.mobile.ui.screens.EventsScreen
 import com.netpilot.mobile.ui.screens.HistoryScreen
@@ -122,6 +123,7 @@ object Routes {
     const val MOBILE_VPN = "mobilevpn"
     const val SETTINGS = "settings"
     const val MORE = "more"
+    const val DIAGNOSTICS = "diagnostics"
 }
 
 private fun titleFor(route: String): String = when (route) {
@@ -140,6 +142,7 @@ private fun titleFor(route: String): String = when (route) {
     Routes.PROFILES -> Strings.raw("menu_profiles")
     Routes.MOBILE_VPN -> Strings.raw("menu_mobile_vpn")
     Routes.SETTINGS -> Strings.raw("menu_settings")
+    Routes.DIAGNOSTICS -> Strings.raw("menu_diagnostics")
     Routes.MORE -> Strings.raw("nav_more")
     else -> Strings.raw("app_title")
 }
@@ -163,6 +166,7 @@ private fun AppNavHost(nav: NavHostController) {
         composable(Routes.PROFILES) { ProfilesScreen() }
         composable(Routes.MOBILE_VPN) { MobileVpnScreen() }
         composable(Routes.SETTINGS) { SettingsScreen() }
+        composable(Routes.DIAGNOSTICS) { DiagnosticsScreen() }
         composable(Routes.MORE) { MoreScreen(onOpen = { nav.navigate(it) }) }
     }
 }
@@ -278,7 +282,8 @@ private fun MoreScreen(onOpen: (String) -> Unit) {
         Triple(Strings.raw("menu_adapters"), Routes.ADAPTERS, "adapters"),
         Triple(Strings.raw("menu_profiles"), Routes.PROFILES, "profiles"),
         Triple(Strings.raw("menu_mobile_vpn"), Routes.MOBILE_VPN, "mobile_vpn"),
-        Triple(Strings.raw("menu_settings"), Routes.SETTINGS, "settings")
+        Triple(Strings.raw("menu_settings"), Routes.SETTINGS, "settings"),
+        Triple(Strings.raw("menu_diagnostics"), Routes.DIAGNOSTICS, "diagnostics")
     )
     androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
         columns = androidx.compose.foundation.lazy.grid.GridCells.Fixed(2),
