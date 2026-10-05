@@ -30,8 +30,16 @@ public partial class MainWindow : Window
     // harness (which cannot inject input into an elevated window) knows when
     // to capture a screenshot.
     // ---------------------------------------------------------------------
-    private const string SelfTestMarker = @"E:\op dn\NetPilot\selftest.txt";
-    private const string SelfTestHoldMarker = @"E:\op dn\NetPilot\selftest-hold.txt";
+    /// <summary>
+    /// Where the page walk reports which page it is on, and which page to park on.
+    ///
+    /// Resolved from the data directory. These were absolute paths into the source tree, which
+    /// means the self-test only worked when run from a specific folder on a specific machine, and
+    /// wrote into the checkout rather than anywhere a build owns - which is also why a CI checkout
+    /// could not use them.
+    /// </summary>
+    private static string SelfTestMarker => Path.Combine(App.DataDirectory(), "selftest.txt");
+    private static string SelfTestHoldMarker => Path.Combine(App.DataDirectory(), "selftest-hold.txt");
 
     /// <summary>Page key the walk should keep re-capturing, or "" for a normal run.</summary>
     private string _holdKey = "";

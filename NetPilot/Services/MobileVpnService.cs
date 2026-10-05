@@ -64,7 +64,24 @@ public sealed class MobileVpnService
     /// after which the user's real settings were unrecoverable. On disk it survives a crash
     /// or a reboot, which is exactly when it is needed.
     /// </summary>
-    private const string PendingMarkerPath = @"E:\op dn\NetPilot\pending-share.flag";
+    /// <summary>
+    /// Where the "a share is still applied" flag lives.
+    ///
+    /// Resolved at runtime from the app's data directory rather than being a compiled-in
+    /// absolute path. It used to be the literal <c>E:\op dn\NetPilot\pending-share.flag</c>, which
+    /// does not exist on any machine except the one the app was written on - so on every real
+    /// install the flag was always absent. That silently disabled the entire feature it exists
+    /// for: after a crash or a reboot the app reported "ready" while the system proxy was still
+    /// pointing at a phone that was no longer there, and the next share captured the *already
+    /// modified* network state as its restore point, after which the user's own settings could
+    /// not be recovered.
+    ///
+    /// A bug this consequential hid behind a path that only resolves on the developer's machine,
+    /// which is also why nothing failed visibly.
+    /// </summary>
+    private static readonly string PendingMarkerPath =
+        Path.Combine(App.DataDirectory(), "pending-share.flag");
+
     private static readonly object MarkerLock = new();
 
     private static bool PendingOnDisk
@@ -543,6 +560,132 @@ foreach ($_ in @(Get-NetAdapter -ErrorAction SilentlyContinue)) {{
         return -1;
     }
 
+    /// <summary>
+    /// The only shape a peer proxy address may have: <c>host</c> or <c>host:port</c>, with an
+    /// optional scheme the phone may prefix for the desktop's benefit.
+    ///
+    /// This exists because the value is attacker-controlled and it used to be interpolated
+    /// straight into a PowerShell script that runs elevated. A phone that had paired - which is
+    /// six digits - could send <c>x'; Start-Process calc; '</c> as its proxy address and get
+    /// command execution as administrator on the PC. Pairing is a network-level grant, not a
+    /// shell.
+    ///
+    /// Validating the shape is the fix, not escaping it. Escaping the one place the string was
+    /// interpolated would have left the same hole in the next place it is used, and PowerShell
+    /// has too many quoting contexts to keep that correct by hand. A value that cannot express
+    /// anything but an address cannot be a command, whatever it is later pasted into.
+    ///
+    /// The rules, deliberately strict:
+    /// - a scheme, if present, must be http or https - a proxy is addressed by host and port,
+    ///   and accepting e.g. <c>file:</c> would let the value mean something other than an
+    ///   address further down
+    /// - a host is a hostname or an IPv4/IPv6 literal: letters, digits, dots, hyphens,
+    ///   underscores and colons. No slashes, no spaces, no quotes, no backticks, no $,
+    ///   no semicolons, no braces
+    /// - a port, if present, is 1-65535
+    ///
+    /// That admits every address NetPilot itself emits and nothing else.
+    /// </summary>
+    internal static bool IsValidProxyAddress(string value)
+    {
+        if (string.IsNullOrEmpty(value)) return false;
+
+        string s = value.Trim();
+        if (s.Length == 0 || s.Length > 300) return false;
+
+        // Reject control characters outright rather than relying on the per-character allowlist:
+        // a newline alone is enough to start a new PowerShell statement.
+        foreach (char c in s)
+            if (char.IsControl(c)) return false;
+
+        // Optional scheme.
+        int schemeAt = s.IndexOf("://", StringComparison.Ordinal);
+        if (schemeAt >= 0)
+        {
+            string scheme = s.Substring(0, schemeAt);
+            if (!scheme.Equals("http", StringComparison.OrdinalIgnoreCase) &&
+                !scheme.Equals("https", StringComparison.OrdinalIgnoreCase))
+                return false;
+            s = s.Substring(schemeAt + 3);
+            if (s.Length == 0) return false;
+        }
+
+        // Split host and port. An IPv6 literal carries colons, so only a *trailing* colon with
+        // digits after it counts as the port separator - "::1" must survive this.
+        string host = s;
+        string? port = null;
+
+        int lastColon = s.LastIndexOf(':');
+        if (lastColon >= 0 && s.IndexOf(']') < lastColon)
+        {
+            host = s.Substring(0, lastColon);
+            port = s.Substring(lastColon + 1);
+        }
+        else if (lastColon >= 0 && s.Count(c => c == ':') == 1)
+        {
+            host = s.Substring(0, lastColon);
+            port = s.Substring(lastColon + 1);
+        }
+
+        if (host.Length == 0 || host.Length > 255) return false;
+
+        // Host allowlist. Every character a hostname or an IP literal can contain, and nothing
+        // with meaning in PowerShell, a shell, a registry path or a URI.
+        foreach (char c in host)
+        {
+            bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                      || c == '.' || c == '-' || c == '_' || c == ':' || c == '[' || c == ']'
+                      || c == '%';   // IPv6 zone id, e.g. fe80::1%wlan0
+            if (!ok) return false;
+        }
+
+        // A leading dot, or two in a row, is not a hostname - and ".." is a path fragment.
+        if (host.Contains("..")) return false;
+        if (host.StartsWith(".") || host.StartsWith("-") || host.EndsWith(".")) return false;
+
+        if (port != null)
+        {
+            if (port.Length == 0 || port.Length > 5) return false;
+            foreach (char c in port)
+                if (c < '0' || c > '9') return false;
+            if (!int.TryParse(port, out int p) || p < 1 || p > 65535) return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Splits a validated proxy address into the <c>host</c> and <c>port</c> the PowerShell
+    /// commands need, with the scheme removed.
+    ///
+    /// Both pieces are re-checked here rather than trusted, because this is the last point before
+    /// they reach a string that is executed with administrator rights. <see cref="IsValidProxyAddress"/>
+    /// is the policy; this is the guarantee that it ran.
+    /// </summary>
+    private static (string host, string port) SplitProxyAddress(string validated)
+    {
+        string s = validated.Trim();
+        int schemeAt = s.IndexOf("://", StringComparison.Ordinal);
+        if (schemeAt >= 0) s = s.Substring(schemeAt + 3);
+
+        string host = s;
+        int port = 8080;   // the default a proxy address implies
+
+        int lastColon = s.LastIndexOf(':');
+        bool isIpv6 = s.IndexOf(']') > lastColon;
+        if (lastColon >= 0 && (isIpv6 || s.Count(c => c == ':') == 1))
+        {
+            string maybePort = s.Substring(lastColon + 1);
+            if (maybePort.Length > 0 && maybePort.All(char.IsDigit))
+            {
+                host = s.Substring(0, lastColon);
+                int.TryParse(maybePort, out port);
+            }
+        }
+
+        return (host, port.ToString());
+    }
+
     private async Task<MvResult> ApplyProxyAsync(MvLink link)
     {
         // The proxy must be the one the phone offers. Our own HTTP listener on
@@ -551,21 +694,54 @@ foreach ($_ in @(Get-NetAdapter -ErrorAction SilentlyContinue)) {{
         string proxy = (PeerProxy ?? "").Trim();
         if (proxy.Length == 0) return MvResult.Fail("mv_no_proxy");
 
+        // Before anything is executed. See IsValidProxyAddress: this value is interpolated into
+        // a script that runs elevated, and it arrives over the network from the phone.
+        if (!IsValidProxyAddress(proxy))
+        {
+            Log.Warn("mobile", "rejected a peer proxy address that is not an address: " +
+                Redactor.Apply(proxy));
+            return MvResult.Fail("mv_bad_proxy");
+        }
+
+        // The same value goes to netsh and to the registry, each in its own quoting context.
+        // Both now hold a value that can only be a host and a port.
+        var (proxyHost, proxyPort) = SplitProxyAddress(proxy);
+
         // WinHTTP is system-wide: applying a proxy that no longer answers takes the whole
         // machine offline, and the phone may have moved to another IP since the report that
         // carried this address. Prove it answers before a single byte is written.
         if (!await ProxyReachableAsync(proxy).ConfigureAwait(false))
             return MvResult.Fail("mv_proxy_unreachable");
 
-        string script = $@"
-netsh winhttp set proxy proxy-server=""{proxy}"" | Out-Null
+        // The address is passed as an environment variable and read back inside the script, never
+        // interpolated into the script text.
+        //
+        // Interpolating a validated value is *probably* safe, but "probably safe" is the wrong
+        // standard for a string that is base64'd and run elevated: it depends on the validation
+        // staying complete, and on nobody later widening what the script contains. An environment
+        // variable is data by construction - PowerShell will not re-parse it as code, whatever it
+        // contains - so the quoting context stops being part of the threat model. The validation
+        // stays, because it is what keeps the registry and netsh from being pointed at something
+        // that is not a proxy.
+        string script = @"
+$npProxy = $env:NP_PROXY_ADDR
+if ([string]::IsNullOrEmpty($npProxy)) { throw 'no proxy address' }
+$npHost, $npPort = $npProxy.Split(':')
+netsh winhttp set proxy proxy-server=""$npHost`:$npPort"" | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -Name ProxyEnable -Value 1 -ErrorAction SilentlyContinue
-Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -Name ProxyServer -Value '{proxy}' -ErrorAction SilentlyContinue
+Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -Name ProxyServer -Value ($npHost + ':' + $npPort) -ErrorAction SilentlyContinue
 'OK'";
-        var (ok, output) = await Sys.PsAsync(script, 20000).ConfigureAwait(false);
+        var (ok, output) = await Sys.PsAsync(script, 20000, new Dictionary<string, string>
+        {
+            // Reassembled from the two validated pieces, so the script never sees the raw string
+            // in any form. The host is already known to be a host and the port a number.
+            ["NP_PROXY_ADDR"] = proxyHost + ":" + proxyPort,
+        }).ConfigureAwait(false);
         if (!ok || !output.Contains("OK")) return MvResult.Fail("mv_error", output);
 
-        _proxyApplied = proxy;
+        Log.Info("mobile", "applied the peer proxy " + proxyHost + ":" + proxyPort +
+            " after verifying it answers as an HTTP proxy");
+        _proxyApplied = proxyHost + ":" + proxyPort;
         IsSharing = true;
         WriteMarker("share");
         return MvResult.Success("mv_share_started");

@@ -1,9 +1,9 @@
 # End-to-end installer test: install -> run the installed app -> uninstall.
 # ASCII only (PS 5.1 reads BOM-less files as ANSI).
 $ErrorActionPreference = 'Continue'
-$setup  = 'E:\op dn\NetPilot\dist\NetPilot-Setup.exe'
+$setup  = Join-Path (Split-Path -Parent $PSScriptRoot) 'dist\NetPilot-Setup.exe'
 $target = 'C:\Users\Public\NetPilotInstallTest'
-$rep    = 'E:\op dn\NetPilot\installer\test-report.txt'
+$rep    = Join-Path $PSScriptRoot 'test-report.txt'
 $out = @()
 
 function Reg-View {

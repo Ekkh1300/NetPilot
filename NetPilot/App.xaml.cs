@@ -73,7 +73,15 @@ public partial class App : Application
         window.Show();
     }
 
-    private const string HealthCheckFile = @"E:\op dn\NetPilot\healthcheck.txt";
+    /// <summary>
+    /// Where --healthtest reports its result.
+    ///
+    /// Resolved from the data directory instead of a compiled-in absolute path, which pointed at
+    /// the machine the app was written on and therefore did not exist on any real install - so
+    /// the one consumer of this file, the CI installer job, could never have worked off this
+    /// checkout anyway.
+    /// </summary>
+    private static string HealthCheckFile => Path.Combine(DataDirectory(), "healthcheck.txt");
 
     private static void RunHealthTest()
     {

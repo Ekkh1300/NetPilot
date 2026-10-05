@@ -5,7 +5,9 @@
 #      and embed the payload as a manifest resource -> one portable setup exe
 $ErrorActionPreference = 'Stop'
 
-$root   = 'E:\op dn\NetPilot'
+# From this script's own location: ...\NetPilot\installer -> ...\NetPilot. This is what makes
+# the installer job in CI possible at all - it was pointed at one developer's drive.
+$root   = Split-Path -Parent $PSScriptRoot
 $stage  = Join-Path $env:TEMP 'netpilot-payload'
 $dist   = Join-Path $root 'dist'
 $zip    = Join-Path $dist 'payload.zip'

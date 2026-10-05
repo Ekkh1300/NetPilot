@@ -12,9 +12,19 @@ param(
 # that passes by changing the user's firewall or proxy settings is worse than no suite.
 $ErrorActionPreference = 'Continue'
 
-$root    = 'E:\op dn\NetPilot'
-$mobile  = 'E:\op dn\NetPilotMobile'
-$tests   = 'E:\op dn\NetPilot.Tests\NetPilot.Tests.csproj'
+# Resolved from this script's own location, so a checkout anywhere works.
+#
+# These were absolute paths into one developer's source tree. Every other machine - including a
+# CI runner and including a second developer - would have found no project here and reported
+# every suite as missing, which reads as "the project is broken" rather than "the script points
+# somewhere that does not exist". The Windows suite in particular could only ever have been run
+# by hand from one folder.
+$root    = Split-Path -Parent $PSScriptRoot                    # ...\NetPilot
+$repo    = Split-Path -Parent $root                            # the repository root
+$mobile  = Join-Path $repo 'NetPilotMobile'
+$tests   = Join-Path $repo 'NetPilot.Tests\NetPilot.Tests.csproj'
+$daemonTests = Join-Path $repo 'NetPilot.Daemon.Tests\NetPilot.Daemon.Tests.csproj'
+$coreTests   = Join-Path $repo 'NetPilot.Core.Tests\NetPilot.Core.Tests.csproj'
 $dotnet  = Join-Path $env:LOCALAPPDATA 'dotnet\dotnet.exe'
 if (-not (Test-Path $dotnet)) { $dotnet = 'C:\Program Files\dotnet\dotnet.exe' }
 

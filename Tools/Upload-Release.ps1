@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Continue'
 $gh    = 'C:\Program Files\GitHub CLI\gh.exe'
 $repo  = 'Ekkh1300/NetPilot'
 $tag   = 'v1.2.2-linux'
-$dir   = 'E:\op dn\release\NetPilot-linux-1.2.2'
+$dir   = Join-Path $PSScriptRoot '..\release\NetPilot-linux-1.2.2'
 
 # Largest first: if the connection dies again we want to know about it early rather than after
 # an hour of the last file.

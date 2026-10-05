@@ -1,0 +1,30 @@
+﻿nav items: 14
+  invoke[0] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-dash
+  invoke[1] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-dns
+  invoke[2] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-bench
+  invoke[3] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-smartdns
+  invoke[4] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-monitor
+  invoke[5] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-perapp
+  invoke[6] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-limiter
+  invoke[7] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-sched
+  invoke[8] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-history
+  invoke[9] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-events
+  invoke[10] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-tools
+  invoke[11] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-adapter
+  invoke[12] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-profiles
+  invoke[13] failed: Exception calling "GetCurrentPattern" with "1" argument(s): "Unsupported Pattern."
+OK np-settings
+DONE

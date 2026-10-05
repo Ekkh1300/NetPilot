@@ -13,15 +13,36 @@ public static class Sys
 
     /// <summary>Runs a PowerShell script and returns (success, combined output).</summary>
     public static Task<(bool ok, string output)> PsAsync(string script, int timeoutMs = 45000)
-        => PsAsync(script, true, timeoutMs);
+        => PsAsync(script, true, timeoutMs, null);
+
+    /// <summary>
+    /// Runs a PowerShell script, passing <paramref name="variables"/> as environment variables.
+    ///
+    /// This is how a value that came from the network reaches a script without being parsed as
+    /// part of it. The script reads it back with <c>$env:NAME</c>. Interpolating a value into
+    /// the script text instead is what allowed a paired phone to run commands as administrator
+    /// through the peer-proxy address; PowerShell's quoting rules are subtle enough that getting
+    /// that right by hand is not a standard worth holding a security boundary to.
+    ///
+    /// Environment variables set here are scoped to this process only - they are added to a
+    /// fresh <see cref="ProcessStartInfo"/>, never to the current one, so nothing else in the app
+    /// can read them back.
+    /// </summary>
+    public static Task<(bool ok, string output)> PsAsync(
+        string script,
+        int timeoutMs,
+        IReadOnlyDictionary<string, string> variables)
+        => PsAsync(script, true, timeoutMs, variables);
 
     /// <summary>Runs a PowerShell script and returns (success, <b>stdout only</b>).
     /// stderr is intentionally dropped: PowerShell serializes redirected error records as
     /// "#&lt; CLIXML&gt;…", which would corrupt JSON payloads.</summary>
     public static Task<(bool ok, string output)> PsStdoutAsync(string script, int timeoutMs = 45000)
-        => PsAsync(script, false, timeoutMs);
+        => PsAsync(script, false, timeoutMs, null);
 
-    private static async Task<(bool ok, string output)> PsAsync(string script, bool includeStdErr, int timeoutMs)
+    private static async Task<(bool ok, string output)> PsAsync(
+        string script, bool includeStdErr, int timeoutMs,
+        IReadOnlyDictionary<string, string>? variables)
     {
         try
         {
@@ -33,7 +54,12 @@ public static class Sys
             var psi = new ProcessStartInfo
             {
                 FileName = "powershell.exe",
-                Arguments = $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}",
+                // ArgumentList, not Arguments. A single Arguments string is re-parsed by the
+                // target program's own command-line rules, so a value with a space or a quote
+                // in it changes what runs. ArgumentList passes each argument as one unit and
+                // cannot be re-split. The base64 blob is what made this survivable in practice -
+                // it has no spaces - but that is an accident of the encoding, not a property of
+                // the code, and the next caller may not be so lucky.
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -41,6 +67,25 @@ public static class Sys
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8,
             };
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-ExecutionPolicy");
+            psi.ArgumentList.Add("Bypass");
+            psi.ArgumentList.Add("-EncodedCommand");
+            psi.ArgumentList.Add(encoded);
+
+            if (variables != null)
+            {
+                foreach (var kv in variables)
+                {
+                    // An environment variable name is a key into a process block, so a value
+                    // with an NUL in it would terminate the entry early. Rejected rather than
+                    // sanitised: nothing legitimate contains one, and silently truncating a
+                    // value the caller believes is intact would be worse.
+                    if (kv.Key.Contains('\0') || kv.Value.Contains('\0')) continue;
+                    psi.Environment[kv.Key] = kv.Value;
+                }
+            }
             using var p = Process.Start(psi);
             if (p == null) return (false, "failed to start powershell");
 

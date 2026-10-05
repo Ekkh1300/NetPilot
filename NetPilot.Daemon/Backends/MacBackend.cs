@@ -164,7 +164,12 @@ public sealed class MacBackend : INetworkBackend
         {
             string service = raw.Trim();
             if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
-            var (ok2, servers) = await Shell.RunAsync("networksetup", "-getdnsservers \"{service}\"", 4000, ct).ConfigureAwait(false);
+            // Read from networksetup's own output, so it is trusted by construction - but the
+            // argument is still passed separately, because a name with a space in it is the
+            // normal case here and must not be re-split.
+            if (!Validate.IsMacServiceName(service)) continue;
+            var (ok2, servers) = await Shell.RunAsync("networksetup",
+                new[] { "-getdnsservers", service }, 4000, ct).ConfigureAwait(false);
             if (!ok2) continue;
             var v4 = servers.Split('\n')
                 .Select(l => l.Trim())
@@ -188,9 +193,26 @@ public sealed class MacBackend : INetworkBackend
         if (!IsPrivileged)
             return Task.FromResult(MvResult.Fail("daemon_need_root", "networksetup needs root"));
 
-        // "Empty" is how macOS is told to go back to DHCP, which is the restore case.
-        string value = serversV4.Count == 0 ? "empty" : string.Join(" ", serversV4);
-        var (ok, outp) = Shell.Run("networksetup", $"-setdnsservers \"{adapter}\" {value}", 8000);
+        // Both values come from the daemon's HTTP API, which has no authentication.
+        //
+        // This was the worst of the three injection sites: the addresses went in with no quoting
+        // at all, so a resolver address of "1.1.1.1 -setwebproxy Wi-Fi evil 8080" became four
+        // arguments to networksetup, and an adapter name could close the quotes around it and do
+        // the same. Validated as an address, and passed as separate arguments, so neither is
+        // possible now.
+        if (!Validate.IsMacServiceName(adapter))
+            return Task.FromResult(MvResult.Fail("daemon_bad_interface", adapter));
+        if (serversV4.Count > 0 && !Validate.AreDnsServers(serversV4))
+            return Task.FromResult(MvResult.Fail("daemon_bad_dns", string.Join(",", serversV4)));
+
+        // "empty" is how macOS is told to go back to DHCP, which is the restore case. It is a
+        // networksetup keyword rather than an address, so it is added only when there is nothing
+        // to set - never mixed in with validated addresses.
+        var args = new List<string> { "-setdnsservers", adapter };
+        if (serversV4.Count == 0) args.Add("empty");
+        else args.AddRange(serversV4);
+
+        var (ok, outp) = Shell.Run("networksetup", args, 8000);
         LastPrivilegeError = outp?.Trim() ?? "";
         return Task.FromResult(ok ? MvResult.Success()
                                   : MvResult.Fail("daemon_dns_failed",
@@ -234,7 +256,9 @@ public sealed class MacBackend : INetworkBackend
         {
             string service = raw.Trim();
             if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
-            var (ok2, outp) = await Shell.RunAsync("networksetup", $"-getwebproxy \"{service}\"", 4000, ct).ConfigureAwait(false);
+            if (!Validate.IsMacServiceName(service)) continue;
+            var (ok2, outp) = await Shell.RunAsync("networksetup",
+                new[] { "-getwebproxy", service }, 4000, ct).ConfigureAwait(false);
             if (!ok2) continue;
             string host = Field(outp, "Server:");
             string port = Field(outp, "Port:");
@@ -262,10 +286,10 @@ public sealed class MacBackend : INetworkBackend
         string host = "", port = "";
         if (hostPort.Length > 0)
         {
-            int i = hostPort.LastIndexOf(':');
-            if (i <= 0) return MvResult.Fail("daemon_proxy_bad", hostPort);
-            host = hostPort[..i];
-            port = hostPort[(i + 1)..];
+            // Validated, not escaped: both values came off the unauthenticated API and used to be
+            // interpolated straight into a string with no quoting on the host or the port at all.
+            if (!Validate.TryHostPort(hostPort, out host, out port))
+                return MvResult.Fail("daemon_proxy_bad", hostPort);
         }
 
         int applied = 0, failed = 0;
@@ -274,13 +298,16 @@ public sealed class MacBackend : INetworkBackend
         {
             string service = raw.Trim();
             if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
+            // networksetup's own output, so trusted by construction; still passed as one argument
+            // so a service named "Wi-Fi" is not split in half.
+            if (!Validate.IsMacServiceName(service)) continue;
 
             foreach (var kind in new[] { "webproxy", "securewebproxy" })
             {
-                var (k, outp) = await Shell.RunAsync("networksetup",
-                    hostPort.Length == 0
-                        ? $"-{kind} \"{service}\" off"
-                        : $"-{kind} \"{service}\" {host} {port}", 5000, ct).ConfigureAwait(false);
+                var args = hostPort.Length == 0
+                    ? new[] { "-" + kind, service, "off" }
+                    : new[] { "-" + kind, service, host, port };
+                var (k, outp) = await Shell.RunAsync("networksetup", args, 5000, ct).ConfigureAwait(false);
                 if (k) applied++;
                 else { failed++; lastError = outp?.Trim() ?? ""; }
             }
@@ -357,7 +384,9 @@ public sealed class MacBackend : INetworkBackend
                 {
                     string service = raw.Trim();
                     if (service.Length == 0 || service.StartsWith("*", StringComparison.Ordinal)) continue;
-                    var (_, servers) = await Shell.RunAsync("networksetup", $"-getdnsservers \"{service}\"", 4000, ct).ConfigureAwait(false);
+                    if (!Validate.IsMacServiceName(service)) continue;
+            var (_, servers) = await Shell.RunAsync("networksetup",
+                new[] { "-getdnsservers", service }, 4000, ct).ConfigureAwait(false);
                     var v4 = servers.Split('\n').Select(l => l.Trim())
                         .Where(l => IPAddress.TryParse(l, out _)).ToList();
                     dns.Add(new Dictionary<string, object>

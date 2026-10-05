@@ -9,7 +9,7 @@ param([int[]]$Sizes = @(512, 1024))
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$outDir = 'E:\op dn\release\play-store-1.2.0'
+$outDir = Join-Path (Split-Path -Parent $PSScriptRoot) '..\release\play-store-1.2.0'
 
 # Brand colours, straight out of the Android resources.
 $BG    = [System.Drawing.Color]::FromArgb(255, 0x1A, 0x1F, 0x2B)   # np_icon_bg

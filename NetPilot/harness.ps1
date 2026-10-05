@@ -13,8 +13,8 @@ public class WinCap {
 '@
 [WinCap]::SetProcessDPIAware() | Out-Null
 
-$marker = 'E:\op dn\NetPilot\selftest.txt'
-$outDir = 'E:\op dn\NetPilot'
+$marker = Join-Path $env:LOCALAPPDATA 'NetPilot\selftest.txt'
+$outDir = $PSScriptRoot
 $done = @{}
 $deadline = (Get-Date).AddSeconds(115)
 

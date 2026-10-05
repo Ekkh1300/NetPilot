@@ -5,7 +5,7 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$out = 'E:\op dn\release\play-store-1.2.0\feature-graphic-1024x500.png'
+$out = Join-Path (Split-Path -Parent $PSScriptRoot) '..\release\play-store-1.2.0\feature-graphic-1024x500.png'
 $W = 1024; $H = 500
 
 $bmp = New-Object System.Drawing.Bitmap $W, $H, ([System.Drawing.Imaging.PixelFormat]::Format24bppRgb)

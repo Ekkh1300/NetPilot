@@ -1,0 +1,30 @@
+﻿nav items: 14
+invoke failed [0]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-dash
+invoke failed [1]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-dns
+invoke failed [2]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-bench
+invoke failed [3]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-smartdns
+invoke failed [4]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-monitor
+invoke failed [5]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-perapp
+invoke failed [6]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-limiter
+invoke failed [7]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-sched
+invoke failed [8]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-history
+invoke failed [9]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-events
+invoke failed [10]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-tools
+invoke failed [11]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-adapter
+invoke failed [12]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-profiles
+invoke failed [13]: Unable to find type [System.Windows.Automation.Patterns].
+OK np-settings
+DONE

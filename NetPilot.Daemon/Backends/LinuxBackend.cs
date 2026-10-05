@@ -243,13 +243,26 @@ public sealed class LinuxBackend : INetworkBackend
         if (!IsPrivileged)
             return Task.FromResult(MvResult.Fail("daemon_need_root", "changing DNS needs root"));
 
+        // The adapter and every resolver address arrive from the daemon's HTTP API, which has no
+        // authentication. Validated before they reach the command line: previously they were
+        // interpolated into one argument string, so an address of
+        // "1.1.1.1 --state=up" would have been two arguments to resolvectl.
+        if (!string.IsNullOrEmpty(adapter) && !Validate.IsInterfaceName(adapter))
+            return Task.FromResult(MvResult.Fail("daemon_bad_interface", adapter));
+        if (!Validate.AreDnsServers(serversV4))
+            return Task.FromResult(MvResult.Fail("daemon_bad_dns", string.Join(",", serversV4)));
+
         // systemd-resolved, because on a modern distro /etc/resolv.conf is generated: editing
         // it either fails or is silently undone at the next DHCP renewal, and a DNS setting
         // that reverts itself is worse than one that visibly failed.
-        string target = string.IsNullOrEmpty(adapter) ? "" : adapter;
-        var (ok, outp) = Shell.Run("resolvectl",
-            string.IsNullOrEmpty(target) ? $"dns {string.Join(" ", serversV4)}"
-                                         : $"dns {target} {string.Join(" ", serversV4)}", 5000);
+        //
+        // One argument per element. A resolver address can never become two arguments, whatever it
+        // contains - which is the property the string form could not offer.
+        var args = new List<string> { "dns" };
+        if (!string.IsNullOrEmpty(adapter)) args.Add(adapter);
+        args.AddRange(serversV4);
+
+        var (ok, outp) = Shell.Run("resolvectl", args, 5000);
         LastPrivilegeError = outp?.Trim() ?? "";
         if (!ok)
             return Task.FromResult(MvResult.Fail("daemon_dns_failed",
@@ -439,7 +452,21 @@ public sealed class LinuxBackend : INetworkBackend
 
         // Then confirm instead of trusting. "Applied" is a claim; an htb qdisc actually being
         // on the interface is evidence.
-        var (verify, verifyOut) = Shell.Run("tc", $"qdisc show dev {dev}", 5000);
+        // One argument for the device, and the device itself validated: `tc` reads a leading
+        // hyphen as an option, so an interface named "-show" would have been a flag rather
+        // than a device.
+        bool verify;
+        string verifyOut;
+        if (!Validate.IsInterfaceName(dev))
+        {
+            verify = false;
+            verifyOut = $"refused an interface name that is not one: {dev}";
+        }
+        else
+        {
+            (verify, verifyOut) = Shell.Run("tc", new[] { "qdisc", "show", "dev", dev }, 5000);
+        }
+
         if (verify && !verifyOut.Contains("htb", StringComparison.Ordinal))
             return MvResult.Fail("daemon_tc_unverified",
                 "tc accepted the commands but no htb qdisc is present on the interface");
@@ -475,27 +502,49 @@ public sealed class LinuxBackend : INetworkBackend
             ? $"{h}:{p}" : "");
     }
 
-    public Task<MvResult> SetSystemProxyAsync(string hostPort, CancellationToken ct = default)
-    {
-        if (hostPort.Length == 0)
+        public Task<MvResult> SetSystemProxyAsync(string hostPort, CancellationToken ct = default)
         {
-            var (ok, outp) = Shell.Run("gsettings", "set org.gnome.system.proxy mode 'none'", 3000);
-            return Task.FromResult(ok ? MvResult.Success()
-                                     : MvResult.Fail("daemon_proxy_failed", outp?.Trim()));
-        }
-        int i = hostPort.LastIndexOf(':');
-        if (i <= 0) return Task.FromResult(MvResult.Fail("daemon_proxy_bad", hostPort));
-        string host = hostPort[..i], port = hostPort[(i + 1)..];
+            if (hostPort.Length == 0)
+            {
+                var (ok, outp) = Shell.Run("gsettings",
+                    new[] { "set", "org.gnome.system.proxy", "mode", "none" }, 3000);
+                return Task.FromResult(ok ? MvResult.Success()
+                                         : MvResult.Fail("daemon_proxy_failed", outp?.Trim()));
+            }
 
-        var (ok2, outp2) = Shell.Run("gsettings",
-            "set org.gnome.system.proxy mode 'manual'; " +
-            $"gsettings set org.gnome.system.proxy.http host '{host}'; " +
-            $"gsettings set org.gnome.system.proxy.http port {port}; " +
-            $"gsettings set org.gnome.system.proxy.https host '{host}'; " +
-            $"gsettings set org.gnome.system.proxy.https port {port}", 5000);
-        return Task.FromResult(ok2 ? MvResult.Success()
-                                  : MvResult.Fail("daemon_proxy_failed", outp2?.Trim()));
-    }
+            // The proxy arrives from the daemon's HTTP API, which has no authentication.
+            // Validated as an address rather than escaped: it used to be interpolated into a
+            // string that also carried a semicolon and four more commands, so a host of
+            // "x'; gsettings set org.gnome.system.proxy ignore-hosts \"['localhost']'; '"
+            // would have run under the daemon's own privileges.
+            if (!Validate.TryHostPort(hostPort, out string host, out string port))
+                return Task.FromResult(MvResult.Fail("daemon_proxy_bad", hostPort));
+
+            // One gsettings process per setting, each argument passed separately.
+            //
+            // The previous version built a single string holding five commands joined by ";" and
+            // handed it to one gsettings invocation. gsettings has no shell, so it read the whole
+            // thing as the value of `mode` and failed - meaning this could only ever have failed,
+            // never worked. Five calls is the correct shape.
+            var steps = new[]
+            {
+                new[] { "set", "org.gnome.system.proxy",       "mode", "manual" },
+                new[] { "set", "org.gnome.system.proxy.http",  "host", host },
+                new[] { "set", "org.gnome.system.proxy.http",  "port", port },
+                new[] { "set", "org.gnome.system.proxy.https", "host", host },
+                new[] { "set", "org.gnome.system.proxy.https", "port", port },
+            };
+
+            foreach (var step in steps)
+            {
+                var (ok, outp) = Shell.Run("gsettings", step, 5000);
+                if (!ok)
+                    return Task.FromResult(MvResult.Fail("daemon_proxy_failed",
+                        outp?.Trim() ?? "gsettings refused a proxy setting"));
+            }
+
+            return Task.FromResult(MvResult.Success());
+        }
 
     // ============================ VPN ============================
 
@@ -537,7 +586,12 @@ public sealed class LinuxBackend : INetworkBackend
 
     private static string ReadFirstV4(string ifName)
     {
-        var (_, outp) = Shell.Run("ip", $"-4 -o addr show {ifName}", 3000);
+        // An interface name arriving from the API is not trusted to be an interface name. A
+        // leading hyphen would be read by `ip` as an option rather than a device, so an
+        // interface called "-help" would have printed help instead of an address.
+        if (!Validate.IsInterfaceName(ifName)) return "";
+
+        var (_, outp) = Shell.Run("ip", new[] { "-4", "-o", "addr", "show", ifName }, 3000);
         var parts = (outp ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < parts.Length - 1; i++)
             if (parts[i] == "inet") return parts[i + 1].Split('/')[0];

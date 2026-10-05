@@ -1,0 +1,35 @@
+﻿  Determining projects to restore...
+  Restored E:\op dn\NetPilot\NetPilot.csproj (in 105 ms).
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(195,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(234,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\MainViewModel.cs(247,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,29): warning CS0169: The field 'MonitorService._lastUp' is never used [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,18): warning CS0169: The field 'MonitorService._lastDown' is never used [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+CSC : warning WFAC010: Remove high DPI settings from E:\op dn\NetPilot\app.manifest and configure via Application.SetHighDpiMode API or 'ApplicationHighDpiMode' project property [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(195,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(234,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\ViewModels\MainViewModel.cs(247,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,18): warning CS0169: The field 'MonitorService._lastDown' is never used [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,29): warning CS0169: The field 'MonitorService._lastUp' is never used [E:\op dn\NetPilot\NetPilot.csproj]
+CSC : warning WFAC010: Remove high DPI settings from E:\op dn\NetPilot\app.manifest and configure via Application.SetHighDpiMode API or 'ApplicationHighDpiMode' project property [E:\op dn\NetPilot\NetPilot.csproj]
+  NetPilot -> E:\op dn\NetPilot\bin\Debug\net8.0-windows\NetPilot.dll
+
+Build succeeded.
+
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(195,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(234,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\MainViewModel.cs(247,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,29): warning CS0169: The field 'MonitorService._lastUp' is never used [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,18): warning CS0169: The field 'MonitorService._lastDown' is never used [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+CSC : warning WFAC010: Remove high DPI settings from E:\op dn\NetPilot\app.manifest and configure via Application.SetHighDpiMode API or 'ApplicationHighDpiMode' project property [E:\op dn\NetPilot\NetPilot_grr0crq1_wpftmp.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(195,24): warning CS1998: This async method lacks 'await' operators and will run synchronously. Consider using the 'await' operator to await non-blocking API calls, or 'await Task.Run(...)' to do CPU-bound work on a background thread. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\ViewModels\DnsViewModels.cs(234,13): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\ViewModels\MainViewModel.cs(247,9): warning CS4014: Because this call is not awaited, execution of the current method continues before the call is completed. Consider applying the 'await' operator to the result of the call. [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,18): warning CS0169: The field 'MonitorService._lastDown' is never used [E:\op dn\NetPilot\NetPilot.csproj]
+E:\op dn\NetPilot\Services\MonitorService.cs(26,29): warning CS0169: The field 'MonitorService._lastUp' is never used [E:\op dn\NetPilot\NetPilot.csproj]
+CSC : warning WFAC010: Remove high DPI settings from E:\op dn\NetPilot\app.manifest and configure via Application.SetHighDpiMode API or 'ApplicationHighDpiMode' project property [E:\op dn\NetPilot\NetPilot.csproj]
+    12 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.85
+EXIT=0

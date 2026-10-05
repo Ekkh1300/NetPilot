@@ -6,8 +6,10 @@
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Drawing
 
-$src = 'D:\avdl\shots\raw'
-$dst = 'E:\op dn\release\play-store-1.2.0'
+# From the repository root, so the script works in any checkout. This pointed at another drive
+# entirely, which no checkout on any other machine would have.
+$src = Join-Path (Split-Path -Parent $PSScriptRoot) '..\shots\raw'
+$dst = Join-Path (Split-Path -Parent $PSScriptRoot) '..\release\play-store-1.2.0'
 
 $map = [ordered]@{
     '01-dashboard'     = '01-dashboard-health'
