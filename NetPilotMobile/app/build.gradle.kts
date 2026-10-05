@@ -9,6 +9,13 @@ plugins {
 android {
     namespace = "com.netpilot.mobile"
     compileSdk = 36
+
+    // BuildConfig.VERSION_NAME is read by the startup log line, so the app can be identified
+    // from a pasted log. One flag rather than hardcoding a version string in code, which would
+    // be wrong the moment the version was bumped.
+    buildFeatures {
+        buildConfig = true
+    }
     buildToolsVersion = "36.1.0"
 
     defaultConfig {

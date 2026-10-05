@@ -5,12 +5,15 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.netpilot.mobile.core.AppGraph
+import com.netpilot.mobile.core.log.LogLevel
+import com.netpilot.mobile.core.log.NpLog
 import com.netpilot.mobile.pc.PcBridge
 import com.netpilot.mobile.pc.PcLinkService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * Application entry point. Owns the process-wide object graph (stores, engine
@@ -21,6 +24,18 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+
+        // Logging first, before anything that can fail. This app had no logging at all - not
+        // one android.util.Log call and no file - so a fault in the tunnel, the DNS forwarder
+        // or the proxy produced nothing to look at and nothing to send. Now it produces a log
+        // that is rotated, bounded, and stripped of the pairing token before it touches disk.
+        NpLog.configure(File(filesDir, "logs"), LogLevel.INFO)
+        // The relay is the busiest subsystem by an order of magnitude; Trace there would fill
+        // the file with per-packet noise and bury the one line that explains a failure.
+        NpLog.setCategoryLevel("probe", LogLevel.DEBUG)
+        NpLog.info("app", "NetPilot ${BuildConfig.VERSION_NAME} starting")
+        NpLog.info("app", "log file: ${NpLog.filePath ?: "(memory only)"}")
+
         AppGraph.init(this)
         createChannels()
         keepPcLinkAlive()

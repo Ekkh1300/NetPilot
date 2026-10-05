@@ -10,6 +10,7 @@ import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import com.netpilot.mobile.core.log.NpLog
 import com.netpilot.mobile.core.AppGraph
 import com.netpilot.mobile.data.Repo
 import com.netpilot.mobile.net.DnsForwarder
@@ -240,14 +241,39 @@ class NetPilotVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        DnsForwarder.onUdpSocket = { s -> runCatching { protect(s) } }
-        DnsForwarder.onTcpSocket = { s -> runCatching { protect(s) } }
+        // A failed protect() is not a small thing and it must not be swallowed.
+        //
+        // protect() excludes a socket from the tunnel. If it fails, the socket stays inside the
+        // tunnel, so the desktop's proxy traffic is routed back through the phone's own tunnel -
+        // the exact loop that made the PC appear connected and carry no data, with nothing at
+        // all to explain it. Every one of these hooks used to be a bare runCatching whose
+        // failure vanished, on the one code path where a silent failure is a mystery symptom.
+        DnsForwarder.onUdpSocket = { s -> protectOrLog("dns udp", { protect(s) }) }
+        DnsForwarder.onTcpSocket = { s -> protectOrLog("dns tcp", { protect(s) }) }
         // The LAN proxy the desktop dials has to reach the internet through this tunnel,
         // not around it. Without protect() its sockets are excluded along with the rest of
         // the package, and the PC ends up on the phone's real IP instead of the VPN's.
-        com.netpilot.mobile.pc.ProxyServer.protectSocket = { s -> runCatching { protect(s) }.getOrDefault(false) }
-        com.netpilot.mobile.pc.ProxyServer.protectDatagram = { d -> runCatching { protect(d) }.getOrDefault(false) }
+        com.netpilot.mobile.pc.ProxyServer.protectSocket =
+            { s -> protectOrLog("proxy tcp", { protect(s) }) }
+        com.netpilot.mobile.pc.ProxyServer.protectDatagram =
+            { d -> protectOrLog("proxy udp", { protect(d) }) }
     }
+
+    /** protect(), with the failure recorded. Returns false rather than throwing, so the callers
+     *  keep the "was this socket excluded?" contract they already had. */
+    private fun protectOrLog(what: String, block: () -> Boolean): Boolean =
+        try {
+            block()
+        } catch (t: Throwable) {
+            NpLog.warn(
+                "vpn",
+                "protect() failed for $what, so this socket is still inside the tunnel and its " +
+                    "traffic will loop back through it - the desktop will look connected and " +
+                    "carry nothing"
+            )
+            NpLog.warn("vpn", "protect() failed for $what", t)
+            false
+        }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // Every entry point here is started with startForegroundService(), and Android 12+
@@ -402,8 +428,10 @@ class NetPilotVpnService : VpnService() {
 
         val r = Relay(
             emit = { packet -> tunOut?.let { write(it, packet) } },
-            protectSocket = { socket -> runCatching { protect(socket) }.getOrDefault(false) },
-            protectDatagram = { socket -> runCatching { protect(socket) }.getOrDefault(false) },
+            // Logged, not swallowed: see the note on the other protect hooks. These two are
+            // the relay's own sockets, so a failure here stalls forwarding itself.
+            protectSocket = { socket -> protectOrLog("relay tcp", { protect(socket) }) },
+            protectDatagram = { socket -> protectOrLog("relay udp", { protect(socket) }) },
             firewall = firewall,
             onDnsUdp = { q, srcIp, srcPort, dstIp, dstPort ->
                 onDnsUdp(q, srcIp, srcPort, dstIp, dstPort)
@@ -414,6 +442,11 @@ class NetPilotVpnService : VpnService() {
         FirewallStats.active = true
         r.start()
         relay = r
+        NpLog.info(
+            "vpn",
+            "forwarding engine started: ${packages.size} packages mapped, firewall " +
+                (if (Build.VERSION.SDK_INT >= MIN_FIREWALL_SDK) "available" else "unavailable on this Android version")
+        )
     }
 
     /**
