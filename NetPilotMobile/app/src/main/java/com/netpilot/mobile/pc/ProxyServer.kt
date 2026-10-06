@@ -15,6 +15,7 @@ import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -37,6 +38,14 @@ import java.util.concurrent.atomic.AtomicLong
 object ProxyServer {
 
     const val DEFAULT_PORT = 8788
+    /**
+     * Concurrent connections.
+     *
+     * A browser opens six at a time and the desktop reuses a small fixed set, so a working
+     * client never approaches this. It is a ceiling against a device being pinned, not a budget
+     * for real traffic.
+     */
+    const val MAX_OPEN_CONNECTIONS = 64
 
     private val running = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -51,6 +60,18 @@ object ProxyServer {
 
     private val served = AtomicLong(0L)
     fun servedConnections(): Long = served.get()
+
+    /** Connections currently being handled. See the cap in the accept loop. */
+    private val openConnections = AtomicInteger(0)
+
+    /** Refused because [MAX_OPEN_CONNECTIONS] was reached. Surfaced so it is not invisible. */
+    private val refused = AtomicLong(0L)
+
+    /**
+     * Connections refused for lack of capacity. A climbing count means something is opening
+     * them without using them, which is worth showing rather than silently shedding.
+     */
+    fun refusedConnections(): Long = refused.get()
 
     /**
      * Injected by the VPN service; puts an outbound socket *into* the tunnel.
@@ -123,8 +144,38 @@ object ProxyServer {
                         if (running.get()) stop()
                         break
                     }
+
+                    // A cap on concurrent connections, not on the accept backlog.
+                    //
+                    // The backlog only bounds how many completed handshakes the kernel queues
+                    // before it starts refusing; it does nothing once the connections are
+                    // accepted. The socket is bound to 0.0.0.0, so anything on the same network
+                    // can open one, and each is held for up to 20 s by the read timeout - so a
+                    // few hundred idle opens from one host is enough to exhaust the phone's file
+                    // descriptors and take the tunnel down with it. That is the whole attack, and
+                    // it needs no credentials because the proxy is designed to serve the desktop.
+                    //
+                    // Refused rather than queued: the desktop opens a handful of connections and
+                    // reusing the same ones, so a full queue means the desktop itself is misbehaving
+                    // or the limit is set far too low, and neither is improved by waiting.
+                    if (openConnections.get() >= MAX_OPEN_CONNECTIONS) {
+                        refused.incrementAndGet()
+                        runCatching { client.close() }
+                        continue
+                    }
+
+                    openConnections.incrementAndGet()
                     served.incrementAndGet()
-                    launch { handle(client) }
+                    launch {
+                        try {
+                            handle(client)
+                        } finally {
+                            // Decremented on every path out, including an exception. Leaving it
+                            // to be inferred from the socket closing would leak a slot per crash,
+                            // and the proxy would reach its own limit having served nothing.
+                            openConnections.decrementAndGet()
+                        }
+                    }
                 }
             }
             boundHost.isNotBlank()
@@ -140,6 +191,11 @@ object ProxyServer {
         server = null
         _port.set(0)
         boundHost = ""
+        // Zeroed here as well as by each handler's finally. Every in-flight handler is about to
+        // be interrupted by the scope going away, but that is not immediate - and if a start
+        // followed quickly, the old count would otherwise still be occupying slots and the new
+        // proxy would refuse connections that are perfectly good.
+        openConnections.set(0)
     }
 
     // ------------------------------------------------------------------ connection

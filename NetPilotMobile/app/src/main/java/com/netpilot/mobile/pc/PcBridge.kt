@@ -73,12 +73,39 @@ object PcBridge {
     @Volatile
     private var sharedEndpoint: String = ""
 
+    /**
+     * Rebuilds the state from disk, decrypting the token.
+     *
+     * The plaintext token only ever exists in memory. What reaches the file is whatever
+     * [TokenVault.seal] produced - see that class for why private storage is not a security
+     * control, and for the honest limits of what this protects.
+     */
     private fun load(): PcState {
         val s = AppGraph.store
+        val stored = s.getString(Store.D_PC, "token", "")
+        val token = TokenVault.open(stored) ?: ""
+
+        // Migrate a token written in the clear by an earlier build.
+        //
+        // Without this, an existing install would keep its plaintext token on disk forever - it
+        // would keep working, so nothing would look wrong, and the file would stay readable to
+        // anyone who copies it off the device. The rewrite happens here rather than on some later
+        // save so the plaintext stops existing the first time the app runs after the update,
+        // rather than whenever the user next changes the PC address.
+        if (token.isNotEmpty() && !TokenVault.isSealed(stored)) {
+            AppGraph.store.edit(Store.D_PC) { d ->
+                d.put("token", TokenVault.seal(token))
+            }
+            com.netpilot.mobile.core.log.NpLog.info(
+                "pclink",
+                "re-sealed the stored PC token; until now it was a bare string in the settings file"
+            )
+        }
+
         return PcState(
             host = s.getString(Store.D_PC, "host", ""),
             port = s.getInt(Store.D_PC, "port", DEFAULT_PORT).coerceIn(1, 65535),
-            token = s.getString(Store.D_PC, "token", ""),
+            token = token,
             deviceName = s.getString(Store.D_PC, "name", "")
         ).let { if (it.token.isNotBlank()) it.copy(paired = true) else it }
     }
@@ -88,7 +115,10 @@ object PcBridge {
         AppGraph.store.edit(Store.D_PC) { d ->
             d.put("host", s.host)
             d.put("port", s.port)
-            d.put("token", s.token)
+            // Sealed on the way out, never stored in the clear. An empty token stays empty rather
+            // than being sealed: there is nothing to protect, and sealing "" would make an
+            // unpaired phone look like a document that failed to load.
+            d.put("token", if (s.token.isEmpty()) "" else TokenVault.seal(s.token))
             d.put("name", s.deviceName)
         }
     }

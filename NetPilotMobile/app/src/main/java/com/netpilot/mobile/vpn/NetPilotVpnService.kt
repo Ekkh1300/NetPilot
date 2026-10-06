@@ -479,7 +479,23 @@ class NetPilotVpnService : VpnService() {
         }
     }
 
-    /** Resolvers of the real (non-VPN) networks, captured while they are still visible. */
+    /**
+     * Resolvers of the real (non-VPN) networks, captured while they are still visible.
+     *
+     * `ConnectivityManager.getAllNetworks` is the current API and is not deprecated; `allNetworks`
+     * was its Kotlin property form. The underlying concern the review raised - a deprecation
+     * without a version guard - does not apply here, because nothing about this call is version
+     * dependent. It is called from a service that only exists on API 21+.
+     *
+     * What *is* worth guarding is the fact that this runs immediately after the VPN interface is
+     * established. At that moment the new tunnel is in the list, which is why the TRANSPORT_VPN
+     * filter is not optional: without it the phone would read back its own fake resolver as a
+     * system one and forward every query to itself.
+     *
+     * The runCatching is not defensive noise either - `getNetworkCapabilities` returns null for a
+     * network that disappeared between listing and querying, which happens routinely during a
+     * Wi-Fi roam, and that is a skip rather than an error.
+     */
     private fun systemResolvers(): List<String> {
         val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
             ?: return emptyList()
@@ -491,6 +507,10 @@ class NetPilotVpnService : VpnService() {
                 cm.getLinkProperties(n)?.dnsServers?.forEach { out.add(it.hostAddress) }
             }
         }
+        // Belt and braces: the filter above is the real check, but the address is also removed by
+        // value. If a future Android adds a VPN transport that TRANSPORT_VPN does not cover, this
+        // is what stops the tunnel from resolving through itself - a failure that looks like "DNS
+        // is broken" rather than like a loop.
         out.remove(FAKE_DNS)
         out.remove("127.0.0.53")          // the emulator's stub resolver
         return out.toList()
