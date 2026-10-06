@@ -20,7 +20,7 @@
     <RootNamespace>NetPilot.Daemon</RootNamespace>
     <AssemblyName>netpilotd</AssemblyName>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <Version>1.2.2</Version>
+    <Version>1.2.3</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifiers>linux-x64;linux-arm64;linux-arm;osx-x64;osx-arm64</RuntimeIdentifiers>

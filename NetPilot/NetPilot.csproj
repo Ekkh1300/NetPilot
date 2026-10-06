@@ -19,7 +19,7 @@
     <AssemblyTitle>NetPilot</AssemblyTitle>
     <Product>NetPilot</Product>
     <Company>NetPilot</Company>
-    <Version>1.2.2</Version>
+    <Version>1.2.3</Version>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CA1416;SYSLIB0014</NoWarn>
