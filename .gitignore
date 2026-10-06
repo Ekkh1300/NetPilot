@@ -7,6 +7,25 @@ probe.txt
 rel.txt
 rel.json
 
+# Captured command output. Twelve of these were tracked - build.log, capture.log, debug.log,
+# build1..4.log and so on - which is history nobody wants and nobody reads: they are the console
+# output of a build or a screenshot run at one moment in time. Every one of them is reproducible
+# by re-running the thing that produced it.
+*.log
+
+# Marker files written by the capture and elevated-build harnesses to signal that a step
+# finished. Their presence means nothing once the run is over.
+elev_done.txt
+test-report.txt
+selftest.txt
+selftest-hold.txt
+langcheck.txt
+/st-*.png
+
+# Captured logs from a logger test, and the --healthtest result file.
+NetPilot/healthcheck.txt
+/logcheck/
+
 # ---------------------------------------------------------------- .NET build output
 # The rule is anchored with a leading slash so it matches at the repository root and in each
 # project directory, but not inside a path like src/obj-builder/ - which would be a real
@@ -62,14 +81,6 @@ NetPilotMobile/keystore.properties
 *.p12
 *.pfx
 
-# ---------------------------------------------------------------- verification output
-# Re-created by running the thing that produces it, so it is never worth history.
-NetPilot/healthcheck.txt
-/logcheck/
-/selftest.txt
-/selftest-hold.txt
-/st-*.png
-/langcheck.txt
 
 # ---------------------------------------------------------------- IDE
 .idea/
