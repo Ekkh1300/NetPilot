@@ -460,14 +460,38 @@ public class LoggingTests : IDisposable
         Log.Info("test", "still held open by the writer");
         WaitForFile("still held open by the writer");
 
-        // Documents the platform behaviour the helper works around. If this ever starts
-        // passing, the helper can go and the comment above it with it.
-        Assert.Throws<IOException>(() =>
+        // Documents the platform behaviour the helper works around. If this ever starts being
+        // able to open the file on Windows, the helper can go and the comment above it with it.
+        //
+        // It used to assert the refusal unconditionally, and failed on both Linux and macOS on
+        // every run, because the refusal is a Windows fact and not a .NET fact: Windows share
+        // modes are enforced by the kernel, so a reader that denies write access cannot open a
+        // file the writer still holds. Unix has no such rule - the share mode there is advisory
+        // bookkeeping - so the plain reader opens the file happily and the expected IOException
+        // never arrives. 106 of 107 passed on both runners; this was the one.
+        //
+        // The difference is now asserted rather than skipped. On Windows the reader must be
+        // refused; off Windows it must not be. Skipping would have turned the run green while
+        // discarding the one place this difference is written down, and a future change in either
+        // direction would then pass unnoticed.
+        string path = Path.Combine(_dir, "netpilot.log");
+        bool refused = false;
+        try
         {
-            using var stream = new FileStream(Path.Combine(_dir, "netpilot.log"),
-                                              FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
             stream.ReadByte();
-        });
+        }
+        catch (IOException)
+        {
+            refused = true;
+        }
+
+        Assert.True(OperatingSystem.IsWindows() == refused,
+            refused
+                ? "the plain reader was refused on a platform that does not enforce share " +
+                  "modes, so the reason FileSink.ReadShared exists no longer holds"
+                : "the plain reader opened the live log on Windows, which is exactly the case " +
+                  "ReadShared exists for - check the share mode FileSink opens with");
     }
     // ---------------- formatting ----------------
 
