@@ -153,17 +153,28 @@ public class ShareSafetyTests
     [Fact]
     public async Task Restore_PartialFailure_IsReportedAsPartial()
     {
-        // One real adapter plus one that cannot exist. Whether the real one can actually be
-        // re-metrored depends on elevation - Set-NetIPInterface needs administrator, and the
-        // app always runs elevated (app.manifest). Both outcomes are correct, and the point
-        // of the test is that neither is ever reported as a clean restore:
-        //   elevated    -> RESTORED=1 FAILED=1 -> mv_restore_partial
-        //   not elevated -> RESTORED=0 FAILED=2 -> mv_restore_failed
+        // One real adapter plus one that cannot exist.
+        //
+        // The invariant is that a restore that did not fully succeed is never reported as a
+        // clean one. Which key comes back depends on whether the real adapter could actually be
+        // re-metrored, and that is NOT decided by elevation:
+        //
+        //   RESTORED=1 FAILED=1 -> mv_restore_partial
+        //   RESTORED=0 FAILED=2 -> mv_restore_failed
+        //
+        // This test used to predict the key from WindowsIdentity's Administrator role, and that
+        // prediction was wrong on a GitHub runner. The runner's process token *is* administrator,
+        // so the check said yes - but its PowerShell still refuses Set-NetIPInterface, because
+        // there is no UAC there and no interactive elevation to be had. So the test expected
+        // `partial` while every adapter actually failed, and it failed on every CI run while the
+        // product behaved correctly.
+        //
+        // The prediction is gone rather than made cleverer. Both keys satisfy the invariant, so
+        // both are accepted and what is asserted is the part that must never vary.
         var real = await MobileVpnService.Instance.DetectAsync(force: true);
         var up = real.Links.FirstOrDefault(l => l.IfIndex > 0 && !l.IsVpn);
         if (up == null) return;      // no usable adapter on this host: nothing to assert
 
-        bool elevated = IsElevated();
         using var snap = new SnapshotScope();
         snap.Put("{\"takenAt\":\"unit-test\",\"adapters\":[" +
                  $"{{\"IfIndex\":{up.IfIndex},\"Name\":\"{up.Name}\",\"Metric\":{Math.Max(up.Metric, 1)}," +
@@ -175,7 +186,9 @@ public class ShareSafetyTests
         MvResult r = await MobileVpnService.Instance.RestoreSnapshotAsync();
 
         Assert.False(r.Ok, "a partial restore must not be announced as a clean one");
-        Assert.Equal(elevated ? "mv_restore_partial" : "mv_restore_failed", r.Key);
+        Assert.True(
+            r.Key is "mv_restore_partial" or "mv_restore_failed",
+            $"expected a partial-restore key, got '{r.Key}'");
 
         // The metric we handed the script was the one we just read, so this is a no-op.
         // Assert it anyway: the test must not be able to silently re-metric the machine.

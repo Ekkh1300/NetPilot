@@ -16,6 +16,10 @@ on:
       - 'NetPilot.Core/**'
       - 'NetPilot.Daemon/**'
       - 'NetPilot.Core.Tests/**'
+      # Daemon.Tests was missing from this list while being a real project with 82 tests in it, so
+      # a change to the argument validation - the thing that stopped the command injection - never
+      # triggered this workflow at all. It also now runs in the job below, which it did not before.
+      - 'NetPilot.Daemon.Tests/**'
       - 'Tools/daemon-smoke.sh'
       - '.github/workflows/daemon.yml'
   workflow_dispatch:
@@ -38,8 +42,14 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      # Both suites, not just Core. NetPilot.Daemon.Tests holds the argument-injection tests -
+      # the validators and the argument splitter - and running them only on Windows meant the
+      # platform-specific code that shells out was verified on the one platform where it is
+      # least likely to be exercised. net8.0 with no PlatformTarget, so both build and run here.
       - name: the shared logic, tested here and not only on Windows
-        run: dotnet test NetPilot.Core.Tests/NetPilot.Core.Tests.csproj --nologo
+        run: |
+          dotnet test NetPilot.Core.Tests/NetPilot.Core.Tests.csproj --nologo
+          dotnet test NetPilot.Daemon.Tests/NetPilot.Daemon.Tests.csproj --nologo
 
   # ------------------------------------------------------------------ linux
   linux:

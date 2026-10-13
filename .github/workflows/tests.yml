@@ -94,9 +94,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      # This job has no working-directory, so it runs from the repository root - and the
+      # installer lives at NetPilot\installer, not at the root. The path was .\installer\build.ps1,
+      # which does not exist there, so this job has failed on every run with "check the spelling of
+      # the name" and never once got as far as building anything.
       - name: Build the installer
         shell: pwsh
-        run: .\installer\build.ps1
+        run: .\NetPilot\installer\build.ps1
 
       # The installer needs administrator, which a GitHub runner can grant with an elevated
       # PowerShell, so the same script the project uses for local testing runs here too.
@@ -104,13 +108,14 @@ jobs:
         shell: pwsh
         run: |
           $p = Start-Process -FilePath powershell -ArgumentList @(
-                  '-NoProfile','-ExecutionPolicy','Bypass','-File','installer\test.ps1') `
+                  '-NoProfile','-ExecutionPolicy','Bypass','-File','NetPilot\installer\test.ps1') `
                 -Verb RunAs -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "installer test failed: $($p.ExitCode)" }
-          Get-Content installer\test-report.txt
+          Get-Content NetPilot\installer\test-report.txt
 
       - uses: actions/upload-artifact@v4
         with:
           name: netpilot-setup
-          path: dist/NetPilot-Setup.exe
+          # build.ps1 writes to NetPilot\dist, resolved from its own location.
+          path: NetPilot/dist/NetPilot-Setup.exe
           if-no-files-found: error
