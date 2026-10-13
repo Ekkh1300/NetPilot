@@ -33,6 +33,21 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      # gradlew was committed without the executable bit, because every commit in this repository
+      # was made on Windows, where there is no such bit to record and core.fileMode is false. The
+      # runner checked it out as 644 and died immediately:
+      #
+      #   /home/runner/work/_temp/....sh: line 1: ./gradlew: Permission denied
+      #   ##[error]Process completed with exit code 126.
+      #
+      # Nothing about Gradle, the JDK, the SDK or the repositories was ever reached. The bit is
+      # now recorded in the index (100755) so a clone gets it. This chmod is the same belt-and-
+      # braces the linux daemon job already applies to Tools/daemon-smoke.sh: a Windows checkout
+      # with core.fileMode=false can lose the bit again, and exit 126 is an unhelpful way to
+      # discover that.
+      - name: make the Gradle wrapper runnable
+        run: chmod +x gradlew
+
       # The build compiles against SDK 36. Point ANDROID_HOME at the runner's preinstalled
       # SDK and let the licenses be accepted so the missing platform is downloaded.
       - name: Accept Android SDK licenses

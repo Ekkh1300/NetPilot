@@ -203,6 +203,86 @@ public sealed class RepositoryHygieneTests
             string.Join("\n", offenders.Select(o => "  " + o)));
     }
 
+    // ------------------------------------------------------------------ executable bits
+
+    /// <summary>
+    /// Every script CI runs directly must be recorded in the index as executable, not merely
+    /// look executable on the machine that committed it.
+    ///
+    /// This is a Windows repository, so there is no executable bit to lose locally - and
+    /// <c>core.fileMode=false</c> means even an explicit chmod here is silently ignored by git.
+    /// The bit therefore has to be set with <c>git update-index --chmod=+x</c> and recorded, and
+    /// the only way to notice it going missing is to read the index rather than the filesystem.
+    ///
+    /// It went missing once: <c>NetPilotMobile/gradlew</c> was committed as 100644, and the
+    /// Android job failed on every run with
+    /// <c>./gradlew: Permission denied</c> and exit 126 - before Gradle, the JDK or the SDK were
+    /// ever involved. Nothing in the job's own configuration had changed; the checkout had.
+    /// </summary>
+    [Fact]
+    public void EveryScriptCiRunsIsExecutableInTheIndex()
+    {
+        var required = new[] { "NetPilotMobile/gradlew", "Tools/daemon-smoke.sh" };
+
+        // -s prints the mode; the working tree is irrelevant, which is the whole point.
+        var output = Git("ls-files -s -- " + string.Join(" ", required));
+        var modes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var line in output.Split('\n'))
+        {
+            var parts = line.Trim().Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 4) continue;
+            modes[parts[3].Replace('\\', '/')] = parts[0];
+        }
+
+        var offenders = required
+            .Where(f => !modes.TryGetValue(f, out var mode) || mode != "100755")
+            .Select(f => modes.TryGetValue(f, out var mode)
+                ? $"{f} is {mode} - run: git update-index --chmod=+x {f}"
+                : $"{f} is not tracked at all")
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            "a script CI executes is not executable in the git index, so a Linux or macOS runner " +
+            "will fail with 'Permission denied' and exit 126 before the script ever runs:\n" +
+            string.Join("\n", offenders));
+    }
+
+    [Fact]
+    public void TheModeCheckSeesTheRealModes()
+    {
+        // Without this the check above could pass by finding nothing, which is the failure mode
+        // of every guard in this file.
+        var modes = Git("ls-files -s -- NetPilotMobile/gradlew").Trim();
+        Assert.Matches(@"^1007\d\d [0-9a-f]{40} \d+\tNetPilotMobile/gradlew$", modes);
+
+        // And it must be able to tell the two apart, or it is not reading the mode at all.
+        var self = Git("ls-files -s -- NetPilot.Tests/RepositoryHygieneTests.cs").Trim();
+        Assert.StartsWith("100644", self);
+    }
+
+    /// <summary>Runs git in the repository root and returns stdout, or throws with the reason.</summary>
+    private static string Git(string arguments)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("git", arguments)
+        {
+            WorkingDirectory = RepositoryRoot(),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+        };
+        using var p = System.Diagnostics.Process.Start(psi);
+        if (p == null) throw new InvalidOperationException("could not start git");
+
+        string output = p.StandardOutput.ReadToEnd();
+        string error = p.StandardError.ReadToEnd();
+        p.WaitForExit(30_000);
+        if (p.ExitCode != 0)
+            throw new InvalidOperationException(
+                $"git {arguments} exited {p.ExitCode}: {error.Trim()}");
+        return output;
+    }
+
     // ------------------------------------------------------------------ the checks work
 
     /// <summary>
