@@ -8,6 +8,7 @@ using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using NetPilot.Core.Logging;
 
 namespace NetPilot.Services;
 
@@ -198,6 +199,16 @@ public sealed class BondedDownload
     /// <summary>Consecutive server refusals before a stream gives its block back and stands down.</summary>
     private const int BackoffThreshold = 3;
 
+    /// <summary>
+    /// How many blocks one stream will fail before it gives up on that connection.
+    ///
+    /// Bounded so a stream cannot spin forever against a server that is refusing everything, and
+    /// small enough that a genuinely dead connection is handed to the others quickly. It is a
+    /// retry count rather than a timeout on purpose: a slow block is not a failed block, and a
+    /// download over a mobile hotspot must not be killed for taking the time it needs.
+    /// </summary>
+    private const int MaxStreamRetries = 12;
+
     private readonly string _url;
     private readonly string _destination;
     private readonly IReadOnlyList<BondNetwork> _networks;
@@ -266,8 +277,8 @@ public sealed class BondedDownload
         }
 
         if (!queue.IsComplete && !ct.IsCancellationRequested)
-            throw new IOException($"the download stopped with {queue.BlockCount - queue.BytesDone} " +
-                                  "blocks missing and no network left to fetch them");
+            throw new IOException($"the download stopped with {queue.RemainingCount} of {queue.BlockCount} " +
+                                  "blocks still missing and no connection able to fetch them");
 
         if (ct.IsCancellationRequested) return remote;   // staging file stays, for a resume
 
@@ -303,6 +314,7 @@ public sealed class BondedDownload
         using var client = BondedHttp.HandlerFor(network.LocalAddress, network.MaxBytesPerSecond);
         using var throttle = new Throttle(network.MaxBytesPerSecond);
         var refused = 0;
+        var failures = 0;
 
         while (!ct.IsCancellationRequested)
         {
@@ -368,10 +380,26 @@ public sealed class BondedDownload
                 // and if nothing does the outer loop will find it back in the queue.
                 queue.Release(block);
             }
-            catch
+            catch (Exception ex)
             {
+                // A block failed. It goes back into the queue and this stream tries again after a
+                // pause, because the usual cause is a connection that dropped and would come back.
+                // A real network does this constantly - a laptop lid, a phone hotspot moving, a
+                // wifi roam - and treating every one as fatal ends the download at whatever
+                // percentage it had reached, which is a failure nobody asked for and nothing on
+                // screen explains.
                 queue.Release(block);
-                break;                        // this connection is not working; leave it to the rest
+
+                if (++failures >= MaxStreamRetries)
+                {
+                    Log.Warn("bond", $"{network.Name}: giving up after {failures} failed blocks", ex);
+                    break;
+                }
+
+                // Capped, because the backoff multiplies by the failure count and an uncapped one
+                // turns a bad minute into a twenty-second wait per attempt.
+                await Task.Delay(TimeSpan.FromMilliseconds(Math.Min(200 * failures, 1000)), ct)
+                           .ConfigureAwait(false);
             }
         }
     }

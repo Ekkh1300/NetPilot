@@ -260,6 +260,59 @@ public class BondedDownloadTests : IDisposable
         await AssertFileMatchesAsync(dest, RangeTestServer.PayloadOf(8 * MB));
     }
 
+    // ---------------- a network that goes wrong ----------------
+
+    /// <summary>
+    /// A connection that dies partway through a transfer.
+    ///
+    /// This is the ordinary case, not the exotic one: a laptop lid, a phone hotspot moving, a
+    /// wifi roam, a proxy timing out. The previous behaviour was to hand the block back and stop
+    /// that stream, and if every stream did the same the download simply ended at whatever
+    /// percentage it had reached - with the file still there, the log still quiet, and nothing
+    /// that said "you could have retried".
+    ///
+    /// One blip is absorbed by a stream's own retry. Enough of them to outlast every stream is
+    /// the case that used to end the download early.
+    /// </summary>
+    [Theory]
+    [InlineData(1)]     // a single blip: the stream's own retry
+    [InlineData(6)]     // several, so the backoff actually grows
+    [InlineData(20)]    // more than every stream can absorb on its own
+    public async Task DroppedConnectionsDoNotFinishTheDownloadEarly(int drops)
+    {
+        using var server = new RangeTestServer(8 * MB);
+        server.DropBlockRequests(drops);
+        var dest = TempFile($"dropped-{drops}.bin");
+
+        await new BondedDownload(server.Url, dest, new[] { Loopback(2) }).RunAsync();
+
+        // The whole test is meaningless if the server never actually dropped anything - it would
+        // be passing because the failure never happened rather than because it was survived.
+        // This is what turns a green test into evidence.
+        Assert.True(server.DropsMade > 0,
+                    $"the server dropped nothing, so this tested a healthy download instead ({drops} asked for)");
+
+        await AssertFileMatchesAsync(dest, RangeTestServer.PayloadOf(8 * MB));
+    }
+
+    /// <summary>
+    /// The same failure, but unrecoverable: a server that drops every single block request cannot
+    /// be downloaded, and hanging or retrying forever would be worse than saying so.
+    /// </summary>
+    [Fact]
+    public async Task AServerThatDropsEverythingEventuallyFailsRatherThanHanging()
+    {
+        using var server = new RangeTestServer(4 * MB);
+        server.DropBlockRequests(1000);
+        var dest = TempFile("never.bin");
+
+        await Assert.ThrowsAsync<IOException>(
+            () => new BondedDownload(server.Url, dest, new[] { Loopback(1) }).RunAsync());
+
+        Assert.True(server.DropsMade > 0, "nothing was dropped, so this proved nothing");
+        Assert.False(File.Exists(dest), "a file that never arrived must not be presented as one");
+    }
+
     // ---------------- reporting ----------------
 
     [Fact]

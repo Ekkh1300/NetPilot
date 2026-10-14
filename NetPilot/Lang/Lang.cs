@@ -26,6 +26,7 @@ public sealed class Lang : ObservableObject
         Strings.RegisterTools();
         Strings.RegisterMobile();
         Strings.RegisterDiagnostics();
+        Strings.RegisterBond();
     }
 
     private Lang() { }

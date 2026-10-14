@@ -2117,4 +2117,188 @@
   </DataTemplate>
 
 
+<!-- ==================================================================
+     17) Multi-connection download
+
+     Named after what it does, and deliberately not after the technique: the page
+     downloads files, it does not change where the machine's other traffic goes, and
+     calling it anything tunnel-shaped would describe something this is not.
+     ================================================================== -->
+<DataTemplate DataType="{x:Type vm:BondViewModel}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Style="{StaticResource S.PageTransition}">
+        <StackPanel Margin="30,26,30,34">
+
+            <DockPanel Margin="0,0,0,18" LastChildFill="False">
+                <StackPanel DockPanel.Dock="Left">
+                    <TextBlock Text="{Binding Lang[bond_download]}" Style="{StaticResource T.H1}" />
+                    <TextBlock Text="{Binding Lang[bond_subtitle]}" Style="{StaticResource T.Muted}" Margin="0,6,0,0" />
+                </StackPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Ghost}"
+                        Content="{Binding Lang[refresh]}" Command="{Binding RefreshCommand}" />
+            </DockPanel>
+
+            <!-- Windows turns Wi-Fi off the moment Ethernet is connected, which is the single
+                 most common reason this page gains nothing - and it looks exactly like the
+                 feature being broken. So it is said out loud, with the fix next to it. -->
+            <Border Style="{StaticResource S.Card}" Background="{StaticResource B.Warning}"
+                    Margin="0,0,0,14" Visibility="{Binding NeedsWifiRestore, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="False">
+                    <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[bond_wifi_off]}"
+                               Foreground="{StaticResource B.Text}" FontSize="12.5" TextWrapping="Wrap" />
+                    <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Primary}" Margin="14,0,0,0"
+                            Content="{Binding Lang[bond_restore_wifi]}" Command="{Binding RestoreWifiCommand}" />
+                </DockPanel>
+            </Border>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="390" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Style="{StaticResource S.Card}" Margin="0,0,14,0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[bond_networks]}" Style="{StaticResource T.Section}" />
+                        <TextBlock Text="{Binding Lang[bond_no_networks]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding Networks.Count, Converter={StaticResource ZeroToVis}}" />
+
+                        <ItemsControl ItemsSource="{Binding Networks}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,5,0,5">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox IsChecked="{Binding IsSelected}" VerticalAlignment="Center">
+                                            <StackPanel Margin="4,0,0,0">
+                                                <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text}"
+                                                           FontSize="13" FontWeight="SemiBold" />
+                                                <TextBlock Text="{Binding KindLabel}" Foreground="{StaticResource B.Text2}"
+                                                           FontSize="11" />
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Path=[bond_streams], Source={x:Static lang:Lang.Instance}}"
+                                                       Foreground="{StaticResource B.Text2}" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                                            <!-- Streams, not blocks: one TCP connection often cannot fill a fast link on
+                                                 its own, so a network runs several. The queue of blocks is shared either
+                                                 way, so this changes how much is in flight, not how the file is cut. -->
+                                            <TextBox Text="{Binding Streams, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource S.Input}" Width="48" Height="26"
+                                                     VerticalContentAlignment="Center" TextAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Border Style="{StaticResource S.Separator}" Margin="0,8,0,8"
+                                Visibility="{Binding HasSkipped, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding Lang[bond_skipped]}" Style="{StaticResource T.Label}"
+                                   Visibility="{Binding HasSkipped, Converter={StaticResource BoolToVis}}" />
+                        <TextBlock Text="{Binding Skipped}" Style="{StaticResource T.Hint}" TextWrapping="Wrap"
+                                   Visibility="{Binding HasSkipped, Converter={StaticResource BoolToVis}}" />
+
+                        <Border Style="{StaticResource S.Separator}" Margin="0,12,0,12" />
+
+                        <TextBlock Text="{Binding Lang[bond_url]}" Style="{StaticResource T.Label}" />
+                        <TextBox Text="{Binding Url, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource S.Input}"
+                                 Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding Lang[bond_url_hint]}" Style="{StaticResource T.Hint}" Margin="0,4,0,0" />
+
+                        <TextBlock Text="{Binding Lang[bond_destination]}" Style="{StaticResource T.Label}" Margin="0,12,0,0" />
+                        <DockPanel Margin="0,6,0,0">
+                            <TextBox DockPanel.Dock="Left" Text="{Binding Folder, Mode=OneWay}"
+                                     Style="{StaticResource S.Input}" IsReadOnly="True" />
+                            <Button DockPanel.Dock="Right" Style="{StaticResource S.Btn.Ghost}" Margin="8,0,0,0"
+                                    Content="{Binding Lang[bond_browse]}" Command="{Binding BrowseCommand}" />
+                        </DockPanel>
+
+                        <Button Style="{StaticResource S.Btn.Primary}" Margin="0,14,0,0"
+                                Content="{Binding Lang[bond_start]}" Command="{Binding StartCommand}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource S.Card}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Lang[bond_downloads]}" Style="{StaticResource T.Section}" Margin="0,0,0,10" />
+
+                        <TextBlock Text="{Binding Lang[bond_no_downloads]}" Style="{StaticResource T.Hint}"
+                                   Visibility="{Binding Downloads.Count, Converter={StaticResource ZeroToVis}}" />
+
+                        <ItemsControl ItemsSource="{Binding Downloads}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource S.Card}" Margin="0,0,0,10" Background="{StaticResource B.SurfaceAlt}">
+                                        <StackPanel>
+                                            <DockPanel LastChildFill="False">
+                                                <TextBlock DockPanel.Dock="Left" Text="{Binding FileName}"
+                                                           Foreground="{StaticResource B.Text}" FontSize="13.5"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <TextBlock Text="{Binding SpeedText}" Foreground="{StaticResource B.Accent}"
+                                                               FontSize="12" VerticalAlignment="Center" />
+                                                    <Border Style="{StaticResource S.Chip}" Margin="10,0,0,0">
+                                                        <TextBlock Text="{Binding StateText}" FontSize="11" FontWeight="Bold" />
+                                                    </Border>
+                                                    <Button Style="{StaticResource S.Btn.Ghost}" Margin="8,0,0,0"
+                                                            Content="{Binding Path=[bond_cancel], Source={x:Static lang:Lang.Instance}}"
+                                                            Command="{Binding CancelCommand}" />
+                                                </StackPanel>
+                                            </DockPanel>
+
+                                            <TextBlock Text="{Binding Url}" Foreground="{StaticResource B.Text2}" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+
+                                            <ProgressBar Style="{StaticResource S.Progress}" Margin="0,10,0,0"
+                                                         Minimum="0" Maximum="100" Value="{Binding Percent, Mode=OneWay}" />
+
+                                            <TextBlock Text="{Binding SizeText}" Style="{StaticResource T.Mono}" Margin="0,6,0,0" />
+
+                                            <!-- Who carried what. With a single connection this is one full bar, which is
+                                                 the honest picture rather than a decoration. -->
+                                            <ItemsControl ItemsSource="{Binding Shares}" Margin="0,8,0,0">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <UniformGrid Columns="3" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,14,6">
+                                                            <TextBlock Text="{Binding Name}" Foreground="{StaticResource B.Text2}"
+                                                                       FontSize="11" TextTrimming="CharacterEllipsis" />
+                                                            <ProgressBar Style="{StaticResource S.Progress}" Height="5" Margin="0,3,0,0"
+                                                                         Minimum="0" Maximum="1" Value="{Binding Fraction, Mode=OneWay}" />
+                                                            <TextBlock Text="{Binding SizeText}" Foreground="{StaticResource B.Text2}"
+                                                                       FontSize="10.5" />
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <TextBlock Text="{Binding Error}" Foreground="{StaticResource B.Danger}"
+                                                       FontSize="11.5" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Two adapters into one router is one connection, and the file will not arrive
+                 sooner for using both. Said before the download rather than found out after. -->
+            <TextBlock Text="{Binding Notice}" Style="{StaticResource T.Muted}" TextWrapping="Wrap"
+                       Margin="0,14,0,0" Visibility="{Binding HasNotice, Converter={StaticResource BoolToVis}}" />
+
+        </StackPanel>
+    </ScrollViewer>
+</DataTemplate>
+
+
 </ResourceDictionary>

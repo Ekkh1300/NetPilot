@@ -97,6 +97,7 @@ public class MainViewModel : ObservableObject
     public MobileVpnViewModel MobileVpn { get; }
     public SettingsViewModel Settings { get; }
     public DiagnosticsViewModel Diagnostics { get; }
+    public BondViewModel Bond { get; }
 
     public RelayCommand MinimizeCommand { get; }
     public RelayCommand CloseCommand { get; }
@@ -127,11 +128,12 @@ public class MainViewModel : ObservableObject
         MobileVpn = new MobileVpnViewModel();
         Settings = new SettingsViewModel();
         Diagnostics = new DiagnosticsViewModel();
+        Bond = new BondViewModel();
 
         foreach (var vm in new PageVmBase[]
         {
             Dashboard, DnsManager, Benchmark, SmartDns, Monitor, PerApp, NetLimiter, Schedules,
-            UsageHistory, ConnectionHistory, Tools, Adapters, Profiles, MobileVpn, Settings, Diagnostics,
+            UsageHistory, ConnectionHistory, Bond, Tools, Adapters, Profiles, MobileVpn, Settings, Diagnostics,
         })
             vm.NavigateRequested += Switch;
 
@@ -145,6 +147,8 @@ public class MainViewModel : ObservableObject
         AddNav("scheduled_limits", "\uE823", Schedules);
         AddNav("network_history", "\uE81C", UsageHistory);
         AddNav("connection_history", "\uE7B6", ConnectionHistory);
+        // \uE896 is the download glyph in Segoe MDL2.
+        AddNav("bond_download", "\uE896", Bond);
         AddNav("network_tools", "\uE90F", Tools);
         AddNav("adapters", "\uE968", Adapters);
         AddNav("profiles", "\uE736", Profiles);

@@ -47,6 +47,10 @@ public sealed class BlockQueue
     /// fresh download, only the missing ones when it is a resume.</summary>
     public int BlockCount => _blocks.Length;
 
+    /// <summary>Blocks still to fetch, for an error message that has to be truthful about how
+    /// far the download actually got.</summary>
+    public int RemainingCount { get { lock (_ready) return _blocks.Length - _finished.Count; } }
+
     /// <summary>Fraction of blocks written, 0..1. For a progress bar and nothing else.</summary>
     public double Progress { get { lock (_ready) return _blocks.Length == 0 ? 0 : (double)_finished.Count / _blocks.Length; } }
 

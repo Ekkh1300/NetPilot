@@ -36,6 +36,24 @@ internal sealed class RangeTestServer : IDisposable
     /// <summary>Value the server advertises as its version marker.</summary>
     public string ETag { get; set; } = "\"test-v1\"";
 
+    private int _dropsRemaining;
+    private int _dropsMade;
+
+    /// <summary>How many requests were actually dropped - so a test can prove the failure it
+    /// thinks it is reproducing really happened, rather than passing by coincidence.</summary>
+    public int DropsMade => Volatile.Read(ref _dropsMade);
+
+    /// <summary>
+    /// Drop the next <paramref name="count"/> block requests instead of answering them.
+    ///
+    /// This is what a real network does all the time and a test server never does on its own:
+    /// the connection simply goes away partway through. A downloader that treats every one as
+    /// fatal finishes at whatever percentage it had reached, which is the failure this exists
+    /// to reproduce. The one-byte probe is never dropped, since a dead probe is a dead server
+    /// rather than a flaky one.
+    /// </summary>
+    public void DropBlockRequests(int count) => _dropsRemaining = count;
+
     public int Port { get; }
     public string Url => $"http://127.0.0.1:{Port}/{_name}";
     private readonly string _name = "payload.bin";
@@ -168,7 +186,27 @@ internal sealed class RangeTestServer : IDisposable
         if (partial) _servedRanges.Add($"asked {range}");
 
         header += keepAlive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n";
+
+        // The header always goes out, dropped or not. Leaving it inside the drop branch below
+        // sends a body with no response in front of it, which the client reads as a status line
+        // made of payload bytes and then waits on forever.
         await WriteAsync(stream, Encoding.ASCII.GetBytes(header), ct);
+
+        // A connection that dies partway through a transfer, reproduced on demand.
+        //
+        // Deliberately written as "full header, half the body, hang up" rather than "hang up with
+        // no response at all". An HTTP client silently retries the second kind on a fresh
+        // connection - measured here: one exception costs the server four requests - so a test
+        // built on it never reaches the downloader's own recovery and would pass whether or not
+        // that recovery existed. Once the response has started the request cannot be repeated,
+        // so the failure has to be survived by the code under test rather than around it.
+        if (partial && !(from == 0 && to == 0) && Interlocked.Decrement(ref _dropsRemaining) >= 0)
+        {
+            Interlocked.Increment(ref _dropsMade);
+            await stream.WriteAsync(_payload.AsMemory((int)from, length / 2), ct);
+            await stream.FlushAsync(ct);
+            return false;
+        }
 
         if (!headOnly) await WriteAsync(stream, _payload.AsMemory((int)from, length), ct);
         return keepAlive;
