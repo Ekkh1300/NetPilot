@@ -22,8 +22,8 @@ android {
         applicationId = "com.netpilot.mobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "1.2.3"
+        versionCode = 5
+        versionName = "1.2.4"
     }
 
     compileOptions {

@@ -1,4 +1,4 @@
-# Releases NetPilot 1.2.3.
+# Releases NetPilot 1.2.4.
 #
 # This is the release that carries the command-injection fixes, so the sequence matters more than
 # usual and each step says what it produced rather than just whether it ran:
@@ -17,7 +17,7 @@ $ErrorActionPreference = 'Stop'
 $dotnet = Join-Path $env:LOCALAPPDATA 'dotnet\dotnet.exe'
 if (-not (Test-Path $dotnet)) { $dotnet = 'C:\Program Files\dotnet\dotnet.exe' }
 
-$ver = '1.2.3'
+$ver = '1.2.4'
 $root = Split-Path -Parent $PSScriptRoot
 $stage = Join-Path $root "release\stage-$ver"
 
