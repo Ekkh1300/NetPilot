@@ -254,8 +254,35 @@ public class BondViewModel : PageVmBase
     public static string GuessFileName(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) return "";
-        var name = Path.GetFileName(uri.AbsolutePath.TrimEnd('/'));
-        return string.IsNullOrEmpty(name) ? "download" : name;
+
+        // LocalPath rather than AbsolutePath, because AbsolutePath is the escaped form. A file
+        // called "my file.zip" would otherwise be saved as "my%20file.zip", and one named in
+        // Persian as a string of %D8%xx that nobody can read - the user picked the name and gets
+        // something else back. GetFileName keeps only the last segment, so a name containing a
+        // decoded separator cannot climb out of the folder either.
+        return SafeFileName(Path.GetFileName(uri.LocalPath.TrimEnd('/')));
+    }
+
+    /// <summary>
+    /// Makes a suggested name safe to actually write.
+    ///
+    /// An illegal character is not caught where it is produced; it surfaces much later as a
+    /// download that failed with an unrelated-looking message, which is the worst place for it.
+    /// </summary>
+    private static string SafeFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "download";
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var cleaned = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+
+        // "." and ".." name directories, not files, and would land the download somewhere the
+        // user did not choose. An empty result covers a name made only of illegal characters.
+        if (cleaned.Length == 0 || cleaned is "." or "..") return "download";
+
+        // Bounded because Windows refuses paths past 260 characters in total, and a very long
+        // name is the part most likely to push one over that edge.
+        return cleaned.Length > 180 ? cleaned[..180] : cleaned;
     }
 
     // ---------------- starting one ----------------

@@ -215,6 +215,17 @@ public sealed class BondedDownload
     private readonly long _blockSize;
     private readonly long _streamsPerNetwork;
 
+    /// <summary>
+    /// Streams still running on each network, and the lock guarding the count.
+    ///
+    /// A network is reported as dropped only once every stream on it has stood down. One stream
+    /// giving up proves very little on its own - the others on the same network may be carrying
+    /// on perfectly well - and reporting it anyway would put a warning beside a network that is
+    /// still working, which misleads in exactly the same way as saying nothing.
+    /// </summary>
+    private readonly Dictionary<string, int> _streamsLeft = new();
+    private readonly object _giveUpLock = new();
+
     /// <summary>Raised from the streams, so it arrives on a thread-pool thread. Dispatch to the
     /// UI before touching anything visual.</summary>
     public event Action<BondProgress> Progress;
@@ -262,6 +273,11 @@ public sealed class BondedDownload
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var streams = new List<Task>();
+        lock (_giveUpLock)
+        {
+            _streamsLeft.Clear();
+            foreach (var network in _networks) _streamsLeft[network.Name] = network.Streams;
+        }
         foreach (var network in _networks)
             for (int i = 0; i < network.Streams; i++)
                 streams.Add(Task.Run(() => StreamAsync(remote, network, queue, staging, perNetwork,
@@ -296,6 +312,37 @@ public sealed class BondedDownload
             TotalBytes = total,
             BytesPerNetwork = new Dictionary<string, long>(perNetwork),
         });
+    }
+
+    /// <summary>
+    /// Records that one stream has stopped, and reports the network only when it was the last.
+    ///
+    /// Called for both ways a stream can give up: the server refusing it repeatedly, and the
+    /// connection failing every time. The second of those used to go unreported, which left a
+    /// network sitting on the page contributing nothing with no explanation at all - an uplink
+    /// that had died looked exactly like one that was simply idle.
+    /// </summary>
+    private void StreamGaveUp(string name, string reason)
+    {
+        bool last;
+        lock (_giveUpLock)
+        {
+            if (!_streamsLeft.TryGetValue(name, out int left)) return;
+            last = left <= 1;
+            _streamsLeft[name] = left - 1;
+        }
+
+        if (last) NetworkDropped?.Invoke(name, reason);
+    }
+
+    /// <summary>
+    /// A reason short enough to put on screen. Socket errors are wordy and full of numeric
+    /// codes, so the innermost message is taken and bounded - this ends up in a status column.
+    /// </summary>
+    private static string Reason(Exception ex)
+    {
+        var msg = ex.GetBaseException().Message ?? ex.GetType().Name;
+        return msg.Length > 140 ? msg[..140] + "..." : msg;
     }
 
     /// <summary>
@@ -341,7 +388,7 @@ public sealed class BondedDownload
                 {
                     queue.Release(block);
                     refused++;
-                    if (refused >= BackoffThreshold) { NetworkDropped?.Invoke(network.Name, response.StatusCode.ToString()); break; }
+                    if (refused >= BackoffThreshold) { StreamGaveUp(network.Name, response.StatusCode.ToString()); break; }
                     await Task.Delay(TimeSpan.FromSeconds(refused), ct).ConfigureAwait(false);
                     continue;
                 }
@@ -393,6 +440,7 @@ public sealed class BondedDownload
                 if (++failures >= MaxStreamRetries)
                 {
                     Log.Warn("bond", $"{network.Name}: giving up after {failures} failed blocks", ex);
+                    StreamGaveUp(network.Name, Reason(ex));
                     break;
                 }
 

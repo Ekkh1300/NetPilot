@@ -31,7 +31,7 @@ public sealed class XamlResourceTests
     /// sibling. A test that silently found no XAML and passed would be worse than one that fails,
     /// so an unresolvable root throws rather than returning a directory with nothing in it.
     /// </summary>
-    private static string ProjectRoot()
+    internal static string ProjectRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir != null)

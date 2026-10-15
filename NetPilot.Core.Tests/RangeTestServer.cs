@@ -29,6 +29,7 @@ internal sealed class RangeTestServer : IDisposable
     private readonly ConcurrentBag<IPAddress> _sources = new();
     private readonly ConcurrentBag<(long From, long To, int Ms)> _slowRules = new();
     private readonly ConcurrentBag<string> _servedRanges = new();
+    private readonly ConcurrentBag<(IPAddress Source, string Range)> _served = new();
 
     /// <summary>When false, every request gets 200 and the whole body, Range header or not.</summary>
     public bool SupportsRanges { get; set; } = true;
@@ -63,6 +64,18 @@ internal sealed class RangeTestServer : IDisposable
 
     /// <summary>The Range values every request asked for.</summary>
     public IReadOnlyCollection<string> RangesRequested => _servedRanges.ToArray();
+
+    /// <summary>
+    /// Every request with the address it actually arrived from.
+    ///
+    /// The pair is the whole point. Either half on its own proves much less: knowing the server
+    /// saw two source addresses does not say which network fetched what, and knowing each
+    /// network's byte total does not say its sockets were not quietly leaving from somewhere
+    /// else. Together they let a test assert that each network's work arrived from that
+    /// network's own address - which is the only externally visible form of "bound to a
+    /// specific adapter" there is.
+    /// </summary>
+    public IReadOnlyCollection<(IPAddress Source, string Range)> Served => _served.ToArray();
 
     public RangeTestServer(long size)
     {
@@ -108,6 +121,7 @@ internal sealed class RangeTestServer : IDisposable
 
             using var stream = c.GetStream();
             var reader = new StreamReader(stream, Encoding.ASCII, false, 4096, leaveOpen: true);
+            var source = (c.Client.RemoteEndPoint as IPEndPoint)?.Address;
 
             // Keep-alive: one connection serves many requests, exactly as a real download's
             // streams do. A server that closed after each request would test the wrong thing.
@@ -116,7 +130,7 @@ internal sealed class RangeTestServer : IDisposable
                 var request = await ReadRequestAsync(reader);
                 if (request == null) return;
 
-                if (!await HandleOneAsync(request, stream, _stop.Token)) return;
+                if (!await HandleOneAsync(request, stream, source, _stop.Token)) return;
             }
         }
         catch { }   // a client that hangs up mid-stream is normal here
@@ -134,7 +148,8 @@ internal sealed class RangeTestServer : IDisposable
     }
 
     /// <returns>false when the connection should be closed.</returns>
-    private async Task<bool> HandleOneAsync(string request, Stream stream, CancellationToken ct)
+    private async Task<bool> HandleOneAsync(string request, Stream stream, IPAddress source,
+                                            CancellationToken ct)
     {
         var lines = request.Split('\n');
         var parts = lines[0].Split(' ');
@@ -184,6 +199,10 @@ internal sealed class RangeTestServer : IDisposable
         // The range a stream asked for is the whole reason the engine works, so it is recorded
         // and can be asserted on rather than assumed.
         if (partial) _servedRanges.Add($"asked {range}");
+
+        // And whom it arrived from, paired with what it asked for - see Served for why the two
+        // halves have to be recorded together rather than as separate lists.
+        _served.Add((source, range ?? "(no range)"));
 
         header += keepAlive ? "Connection: keep-alive\r\n\r\n" : "Connection: close\r\n\r\n";
 

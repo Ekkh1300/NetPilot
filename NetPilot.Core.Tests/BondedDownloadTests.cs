@@ -182,7 +182,135 @@ public class BondedDownloadTests : IDisposable
                    a => Assert.Equal(IPAddress.Loopback, a));
     }
 
+    /// <summary>
+    /// The feature's central claim, and the one test that can actually check it: two networks
+    /// with their own local addresses, one file, every socket arriving from the address of the
+    /// network that opened it.
+    ///
+    /// Every other download test in this file runs against a single address, so none of them can
+    /// tell "bound to the right network" apart from "bound to anything at all" - they would all
+    /// pass if the second network were silently ignored and every socket left from the first.
+    /// That is precisely the bug that makes a bonded download look like it is working while it
+    /// adds no speed whatsoever, and it is why this test exists separately.
+    ///
+    /// 127.0.0.1 and 127.0.0.2 stand in for two physical adapters because the claim under test
+    /// is about socket binding rather than about this machine's hardware: the machine owns both
+    /// addresses, so each bind is genuine, and the source address the server observes is the only
+    /// thing that differs between them. The routing half of the claim - that an address selects
+    /// an adapter - is the operating system's, and cannot be shown from a test process.
+    ///
+    /// Stream count equals block count on purpose. A socket opens only when its stream claims
+    /// work, so a network whose streams never claim anything would open nothing and the server
+    /// would never see its address; with one stream per block, every stream's first claim
+    /// succeeds and both networks necessarily carry part of the file.
+    /// </summary>
+    [Fact]
+    public async Task TwoNetworksEachKeepTheirOwnSourceAddress()
+    {
+        const long fileBytes = 64 * MB;
+        using var server = new RangeTestServer(fileBytes);
+        var dest = TempFile("two-nets.bin");
+
+        var wifi = new BondNetwork("wifi", IPAddress.Parse("127.0.0.1"), 4);
+        var usb = new BondNetwork("usb", IPAddress.Parse("127.0.0.2"), 4);
+
+        BondProgress final = null;
+        var dl = new BondedDownload(server.Url, dest, new[] { wifi, usb });
+        dl.Progress += p => final = p;
+
+        await dl.RunAsync();
+
+        await AssertFileMatchesAsync(dest, RangeTestServer.PayloadOf(fileBytes));
+
+        var loopback1 = IPAddress.Parse("127.0.0.1");
+        var loopback2 = IPAddress.Parse("127.0.0.2");
+
+        // 1. The server saw a request from each address. One address only would mean the second
+        //    network's sockets never left on their own.
+        Assert.Contains(server.Served, r => r.Source.Equals(loopback1));
+        Assert.Contains(server.Served, r => r.Source.Equals(loopback2));
+
+        // 2. Both networks actually carried part of the file - a second network that was passed
+        //    in, accepted, and then never used would register here as zero.
+        Assert.NotNull(final);
+        Assert.True(final.BytesPerNetwork["wifi"] > 0,
+                    $"wifi fetched nothing of {fileBytes} bytes");
+        Assert.True(final.BytesPerNetwork["usb"] > 0,
+                    $"usb fetched nothing of {fileBytes} bytes");
+
+        // 3. And the two of them still account for every byte between them.
+        Assert.Equal(fileBytes, final.BytesPerNetwork.Values.Sum());
+
+        // 4. No third address ever appeared. A socket that fell back to some other route would
+        //    show up here as an address nobody configured, which is the silent failure this
+        //    whole mechanism is built to avoid.
+        foreach (var source in server.Served.Select(r => r.Source).Distinct())
+            Assert.True(source.Equals(loopback1) || source.Equals(loopback2),
+                        $"a connection left from {source}, which no network in this download was bound to");
+    }
+
     // ---------------- a server that will not cooperate ----------------
+
+    /// <summary>
+    /// A network that cannot reach the destination at all.
+    ///
+    /// Every other test here assumes each network works. This one adds one whose address the
+    /// machine does not own, so its sockets fail to bind on the first attempt and on every retry
+    /// after it - which is what a dead uplink, an unplugged cable or an adapter with no network
+    /// behind it actually looks like to the engine.
+    ///
+    /// Two things have to hold at once, and neither is automatic. The download must still finish
+    /// on the working network, since one broken path must not take the whole thing with it. And
+    /// the broken one must be reported, because a network that contributes nothing and says
+    /// nothing is worse than one that was never there: it sits on the page looking available.
+    /// </summary>
+    [Fact]
+    public async Task ANetworkThatCannotConnectIsReportedAndDoesNotStopTheRest()
+    {
+        // Enough blocks that every stream draws one on its first claim. With fewer, the working
+        // network takes the lot and the dead streams exit finding nothing to do - never attempting
+        // a connection, so never failing, so the test would pass for the wrong reason.
+        using var server = new RangeTestServer(32 * MB);
+        var dest = TempFile("one-dead.bin");
+
+        // And a download long enough for the dead network to be identified at all.
+        //
+        // A network is reported once every stream on it has used up its retries, which takes
+        // roughly ten seconds of backoff. Against a file that finishes in two, the download ends
+        // first and the report never has reason to happen - correct enough in itself, since there
+        // is nothing left to warn about, but it means the short version of this test passes
+        // without the event ever being raised. Slowing one block is what makes the two networks
+        // still be running when the dead one gives up, which is the case worth pinning down.
+        server.SlowDown(0, 8 * MB, 12_000);
+
+        var good = new BondNetwork("good", IPAddress.Loopback, 2);
+        // 203.0.113.7 is TEST-NET-3: reserved for documentation, never a local address.
+        var dead = new BondNetwork("dead", IPAddress.Parse("203.0.113.7"), 2);
+
+        var drops = new List<string>();
+        string droppedWhy = null;
+        var dl = new BondedDownload(server.Url, dest, new[] { good, dead });
+        dl.NetworkDropped += (name, why) => { drops.Add(name); droppedWhy = why; };
+
+        await dl.RunAsync();
+
+        // The file still arrives whole over the network that works.
+        await AssertFileMatchesAsync(dest, RangeTestServer.PayloadOf(32 * MB));
+
+        // The dead network is named. This is also the proof that it really tried: the event only
+        // fires once every stream on a network has failed a full set of retries, so reaching this
+        // line means its sockets were opened, refused, and retried rather than never used at all.
+        Assert.Contains("dead", drops);
+
+        // The working network is not tarred with the same brush. Reporting both would be as bad
+        // as reporting neither - the page would be warning about the one connection still working.
+        Assert.DoesNotContain("good", drops);
+
+        // And it gives a reason someone could act on. An empty or whitespace reason would leave
+        // the page showing a warning with nothing behind it.
+        Assert.False(string.IsNullOrWhiteSpace(droppedWhy),
+                     "a network that is dropped has to say why");
+    }
 
     [Fact]
     public async Task AServerThatIgnoresRangesStillGetsItsFileDownloaded()
