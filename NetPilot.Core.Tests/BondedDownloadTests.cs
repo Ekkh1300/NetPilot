@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using NetPilot.Services;
@@ -203,6 +204,12 @@ public class BondedDownloadTests : IDisposable
     /// work, so a network whose streams never claim anything would open nothing and the server
     /// would never see its address; with one stream per block, every stream's first claim
     /// succeeds and both networks necessarily carry part of the file.
+    ///
+    /// The second half of the method - the branch on <see cref="CanBind"/> - exists because
+    /// 127.0.0.2 is not a second local address everywhere. Windows and Linux treat all of
+    /// 127.0.0.0/8 as local; macOS configures lo0 with 127.0.0.1 and refuses to bind anything
+    /// else. Rather than skip there and have the test quietly stop testing on one platform, the
+    /// machine without a second address is asked the question it does have an answer to.
     /// </summary>
     [Fact]
     public async Task TwoNetworksEachKeepTheirOwnSourceAddress()
@@ -211,8 +218,11 @@ public class BondedDownloadTests : IDisposable
         using var server = new RangeTestServer(fileBytes);
         var dest = TempFile("two-nets.bin");
 
-        var wifi = new BondNetwork("wifi", IPAddress.Parse("127.0.0.1"), 4);
-        var usb = new BondNetwork("usb", IPAddress.Parse("127.0.0.2"), 4);
+        var loopback1 = IPAddress.Parse("127.0.0.1");
+        var loopback2 = IPAddress.Parse("127.0.0.2");
+
+        var wifi = new BondNetwork("wifi", loopback1, 4);
+        var usb = new BondNetwork("usb", loopback2, 4);
 
         BondProgress final = null;
         var dl = new BondedDownload(server.Url, dest, new[] { wifi, usb });
@@ -220,10 +230,29 @@ public class BondedDownloadTests : IDisposable
 
         await dl.RunAsync();
 
+        // The file comes out whole either way, on every machine.
         await AssertFileMatchesAsync(dest, RangeTestServer.PayloadOf(fileBytes));
+        Assert.NotNull(final);
 
-        var loopback1 = IPAddress.Parse("127.0.0.1");
-        var loopback2 = IPAddress.Parse("127.0.0.2");
+        if (!CanBind(loopback2))
+        {
+            // This machine cannot express the precondition, so the claim that needs two addresses
+            // is not the one being asserted here. Returning with nothing would leave a test that
+            // passes forever without checking anything, which is worse than not having it.
+            //
+            // What the machine does have is a network that cannot bind at all - which is what a
+            // dead uplink looks like from the engine's side. So that is what gets asserted: it
+            // carries nothing, and the working network carries the whole file on its own.
+            //
+            // That a dead network also gets *named* is deliberately not checked here. Doing so
+            // waits for every stream to exhaust its retries, which takes longer than this
+            // download does, so the assertion would pass or fail on scheduling rather than on
+            // behaviour. It is checked on every platform by
+            // ANetworkThatCannotConnectIsReportedAndDoesNotStopTheRest instead.
+            Assert.Equal(0, final.BytesPerNetwork.GetValueOrDefault("usb"));
+            Assert.Equal(fileBytes, final.BytesPerNetwork["wifi"]);
+            return;
+        }
 
         // 1. The server saw a request from each address. One address only would mean the second
         //    network's sockets never left on their own.
@@ -232,7 +261,6 @@ public class BondedDownloadTests : IDisposable
 
         // 2. Both networks actually carried part of the file - a second network that was passed
         //    in, accepted, and then never used would register here as zero.
-        Assert.NotNull(final);
         Assert.True(final.BytesPerNetwork["wifi"] > 0,
                     $"wifi fetched nothing of {fileBytes} bytes");
         Assert.True(final.BytesPerNetwork["usb"] > 0,
@@ -247,6 +275,18 @@ public class BondedDownloadTests : IDisposable
         foreach (var source in server.Served.Select(r => r.Source).Distinct())
             Assert.True(source.Equals(loopback1) || source.Equals(loopback2),
                         $"a connection left from {source}, which no network in this download was bound to");
+    }
+
+    /// <summary>Whether this machine will accept a bind to the given address at all.</summary>
+    private static bool CanBind(IPAddress address)
+    {
+        try
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            socket.Bind(new IPEndPoint(address, 0));
+            return true;
+        }
+        catch (SocketException) { return false; }
     }
 
     // ---------------- a server that will not cooperate ----------------
