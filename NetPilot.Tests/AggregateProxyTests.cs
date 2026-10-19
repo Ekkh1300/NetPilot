@@ -260,7 +260,7 @@ public sealed class AggregateProxyTests
         using var proxy = new AggregateProxy(true);
         // a phone announced on a port where nothing listens: the classic handset-on-a-train
         Assert.True(proxy.Start("127.0.0.1:1"));
-        Assert.True(proxy.Endpoint.StartsWith("127.0.0.1:"));
+        Assert.StartsWith("127.0.0.1:", proxy.Endpoint);
 
         // connection 1: direct first (alternation starts even, plus the phone is still
         // presumed healthy until it is tried), works

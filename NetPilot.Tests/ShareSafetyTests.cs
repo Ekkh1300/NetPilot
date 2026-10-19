@@ -171,13 +171,21 @@ public class ShareSafetyTests
         //
         // The prediction is gone rather than made cleverer. Both keys satisfy the invariant, so
         // both are accepted and what is asserted is the part that must never vary.
+        //
+        // The anchor adapter is also not merely "the first link": on a runner the link list can
+        // start with an adapter that has no IPv4 row (a disconnected Bluetooth PAN, say), whose
+        // metric reads as -1 later and made the closing assert compare against nothing. Pick the
+        // first link whose metric can be read at all, and remember the metric as OBSERVED, not
+        // as the detector reported it.
         var real = await MobileVpnService.Instance.DetectAsync(force: true);
-        var up = real.Links.FirstOrDefault(l => l.IfIndex > 0 && !l.IsVpn);
-        if (up == null) return;      // no usable adapter on this host: nothing to assert
+        var up = real.Links.FirstOrDefault(l => l.IfIndex > 0 && !l.IsVpn &&
+                                                GetNetIPInterfaceMetric(l.Name) > -1);
+        if (up == null) return;      // no readable adapter on this host: nothing to assert
+        int metricBefore = GetNetIPInterfaceMetric(up.Name);
 
         using var snap = new SnapshotScope();
         snap.Put("{\"takenAt\":\"unit-test\",\"adapters\":[" +
-                 $"{{\"IfIndex\":{up.IfIndex},\"Name\":\"{up.Name}\",\"Metric\":{Math.Max(up.Metric, 1)}," +
+                 $"{{\"IfIndex\":{up.IfIndex},\"Name\":\"{up.Name}\",\"Metric\":{metricBefore}," +
                  "\"AutoMetric\":\"Disabled\",\"Dns\":\"\"}," +
                  "{\"IfIndex\":999999,\"Name\":\"unit-test-nope\",\"Metric\":50," +
                  "\"AutoMetric\":\"Disabled\",\"Dns\":\"\"}]," +
@@ -190,10 +198,10 @@ public class ShareSafetyTests
             r.Key is "mv_restore_partial" or "mv_restore_failed",
             $"expected a partial-restore key, got '{r.Key}'");
 
-        // The metric we handed the script was the one we just read, so this is a no-op.
-        // Assert it anyway: the test must not be able to silently re-metric the machine.
-        int metricNow = GetNetIPInterfaceMetric(up.Name);
-        Assert.Equal(Math.Max(up.Metric, 1), metricNow);
+        // Whatever the restore managed to do - set the metric back on this host, or be refused
+        // by a runner that grants no IP-stack writes - the observed metric must come back
+        // exactly as the test found it: the test itself must not re-metric the machine.
+        Assert.Equal(metricBefore, GetNetIPInterfaceMetric(up.Name));
     }
 
     private static bool IsElevated()
