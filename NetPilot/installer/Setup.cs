@@ -1,4 +1,4 @@
-// NetPilot setup - single-file installer, no third-party tooling.
+﻿// NetPilot setup - single-file installer, no third-party tooling.
 //
 // Built with the C# 5 compiler that ships inside Windows
 // (C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe), so it runs on any
@@ -25,7 +25,7 @@ namespace NetPilotInstaller
     internal static class Program
     {
         public const string AppName = "NetPilot";
-        public const string Version = "1.2.2";
+        public const string Version = "1.3.0";
         public const string Publisher = "esi";
         public const string PayloadResource = "netpilot.payload.zip";
 

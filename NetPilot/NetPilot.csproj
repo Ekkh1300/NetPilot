@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -19,7 +19,7 @@
     <AssemblyTitle>NetPilot</AssemblyTitle>
     <Product>NetPilot</Product>
     <Company>NetPilot</Company>
-    <Version>1.2.4</Version>
+    <Version>1.3.0</Version>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>$(NoWarn);CA1416;SYSLIB0014</NoWarn>
