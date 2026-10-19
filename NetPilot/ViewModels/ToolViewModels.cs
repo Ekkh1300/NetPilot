@@ -374,7 +374,10 @@ public class SettingsViewModel : PageVmBase
     private string _statusMessage = "";
     public string StatusMessage { get => _statusMessage; set => Set(ref _statusMessage, value); }
 
-    public string VersionText => "NetPilot 1.2.2";
+    /// <summary>Derived from the assembly, like the shell footer's: a version painted as
+    /// text inside a release branch was already wrong twice in this repo's history.</summary>
+    public string VersionText => "NetPilot " +
+        (typeof(SettingsViewModel).Assembly.GetName().Version is { } v ? v.ToString(3) : "?");
 
     /// <summary>Language choices for the settings combo box.</summary>
     public List<ChoiceVm> LanguageOptions { get; } = new();

@@ -7,8 +7,10 @@ static partial class Strings
     public static void RegisterBond() => Lang.Register(new Dictionary<string, (string, string)>
     {
         ["bond_download"] = ("دانلود چنداتصالی", "Multi-Connection Download"),
-        ["bond_subtitle"] = ("فایل را روی همهٔ اتصال‌های فعال همزدانلود کنید",
+        ["bond_subtitle"] = ("فایل را روی همهٔ اتصال‌های فعال همزمان دانلود کنید",
                              "Download a file across all your active connections at once"),
+        ["bond_phone_name"] = ("گوشی (دیتای همراه)", "Phone (mobile data)"),
+        ["bond_phone_kind"] = ("پروکسی HTTP گوشی · دیتای موبایل", "The phone's HTTP proxy · mobile data"),
         ["bond_networks"] = ("اتصال‌های قابل استفاده", "Connections you can use"),
         ["bond_url"] = ("آدرس فایل", "File address"),
         ["bond_url_hint"] = ("آدرس http یا https فایل را اینجا بگذارید",

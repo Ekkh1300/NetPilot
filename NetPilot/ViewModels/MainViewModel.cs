@@ -55,12 +55,45 @@ public class NavItem : ObservableObject
     }
 }
 
+/// <summary>One sidebar section: a localized label and the pages under it.</summary>
+public sealed class NavSection : ObservableObject
+{
+    private readonly Lang.Lang _lang;
+
+    public NavSection(Lang.Lang lang, string key)
+    {
+        _lang = lang;
+        Key = key;
+        lang.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is "Item[]" or null || e.PropertyName.StartsWith("Item[")) Raise(nameof(Label));
+        };
+    }
+
+    public string Key { get; }
+
+    /// <summary>A live lookup, exactly like NavItem's: a label stored in a field would
+    /// freeze whichever language the shell happened to be showing when the window was
+    /// built, and stay wrong after every later language switch.</summary>
+    public string Label => _lang[Key];
+
+    public ObservableCollection<NavItem> Items { get; } = new();
+}
+
 /// <summary>Shell VM: navigation, language, status bar, tray integration, window commands.</summary>
 public class MainViewModel : ObservableObject
 {
     public Lang.Lang Lang => L.Instance;
     public ObservableCollection<NavItem> Nav { get; } = new();
-    public ObservableCollection<object> NavSecondary { get; } = new();
+
+    /// <summary>
+    /// The same items as <see cref="Nav"/>, their flat order preserved, grouped for the
+    /// sidebar's section headers. Eighteen buttons in one column stopped being scannable a
+    /// while ago; sections make a page findable by what it ist rather than by remembered
+    /// position. Selection still runs against the flat <see cref="Nav"/> list, so grouping is
+    /// presentation only and cannot desynchronise it.
+    /// </summary>
+    public ObservableCollection<NavSection> NavSections { get; } = new();
 
     private object _currentPage;
     public object CurrentPage
@@ -104,7 +137,8 @@ public class MainViewModel : ObservableObject
     public RelayCommand ExitCommand { get; }
     public RelayCommand LangCommand { get; }
 
-    public string VersionText => "NetPilot 1.2.2";
+    public string VersionText => "NetPilot " +
+        (typeof(MainViewModel).Assembly.GetName().Version is { } v ? v.ToString(3) : "?");
 
     public static event Action StatusRefreshRequested;
 
@@ -157,6 +191,61 @@ public class MainViewModel : ObservableObject
         // Diagnostics last: it is the page people reach for when something is already wrong,
         // not somewhere to start a session from.
         AddNav("diagnostics", "\uE9D5", Diagnostics);
+
+        // Section layout. Every page appears in exactly one section, the flat Nav order is
+        // untouched, and a missing or mistyped key is a loud failure rather than a page that
+        // silently disappears from the sidebar.
+        var sectionOf = new Dictionary<string, (NavSection section, int index)>
+        {
+            ["nav_group_start"] = (null, 0),
+            ["nav_group_dns"] = (null, 0),
+            ["nav_group_network"] = (null, 0),
+            ["nav_group_history"] = (null, 0),
+            ["nav_group_links"] = (null, 0),
+            ["nav_group_tools"] = (null, 0),
+            ["nav_group_system"] = (null, 0),
+        };
+        foreach (var key in new[]
+                 {
+                     "nav_group_start", "nav_group_dns", "nav_group_network", "nav_group_history",
+                     "nav_group_links", "nav_group_tools", "nav_group_system",
+                 })
+        {
+            var section = new NavSection(L.Instance, key);
+            NavSections.Add(section);
+            sectionOf[key] = (section, NavSections.Count - 1);
+        }
+
+        var byKey = new Dictionary<string, NavItem>();
+        foreach (var n in Nav) byKey[n.Key] = n;
+        var pageSections = new Dictionary<string, string>
+        {
+            ["dashboard"] = "nav_group_start",
+            ["dns_manager"] = "nav_group_dns",
+            ["dns_benchmark"] = "nav_group_dns",
+            ["smart_dns"] = "nav_group_dns",
+            ["network_monitor"] = "nav_group_network",
+            ["per_app_usage"] = "nav_group_network",
+            ["net_limiter"] = "nav_group_network",
+            ["scheduled_limits"] = "nav_group_network",
+            ["adapters"] = "nav_group_network",
+            ["network_history"] = "nav_group_history",
+            ["connection_history"] = "nav_group_history",
+            ["bond_download"] = "nav_group_links",
+            ["mobile_vpn"] = "nav_group_links",
+            ["network_tools"] = "nav_group_tools",
+            ["profiles"] = "nav_group_tools",
+            ["settings"] = "nav_group_system",
+            ["diagnostics"] = "nav_group_system",
+        };
+        foreach (var n in Nav)
+        {
+            // A page without a section is a bug visible at first launch, not a blank row: the
+            // group it names must exist and the page must have been written into the table.
+            if (!pageSections.TryGetValue(n.Key, out var g) || !sectionOf.TryGetValue(g, out var pair))
+                throw new InvalidOperationException($"page '{n.Key}' names no existing nav section");
+            pair.section.Items.Add(n);
+        }
 
         CurrentPage = Dashboard;
         Nav[0].IsSelected = true;

@@ -127,6 +127,26 @@ static partial class Strings
             "بازگردانی کامل نبود؛ بخشی از آداپتورها تغییر نکرد.",
             "Restore was incomplete - some adapters were left unchanged."),
         ["mv_share_stopped"] = ("اشتراک‌گذاری پایان یافت.", "Sharing stopped."),
+
+        // ---- combine: both internets, one system ----
+        // The wording stays away from "VPN" on purpose, same rule as the page above: nothing
+        // here is a tunnel to a VPN server. What the user is told must also match what the
+        // code does: apps that honour the Windows proxy split across both paths, apps that
+        // ignore proxies (mostly games) keep using the PC's own internet, and the split is
+        // shown from real byte counters rather than a promise.
+        ["mv_combine_title"] = ("تجمیع اینترنت (کل سیستم)", "Combine Internet (whole system)"),
+        ["mv_combine_body"] = ("همهٔ برنامه‌هایی که تنظیمات پراکسی ویندوز را می‌پذیرند، به‌طور خودکار بین اینترنت رایانه و دیتای گوشی تقسیم می‌شوند: هر اتصال یک مسیر، صفحهٔ بعدی مسیر دیگر. برنامه‌هایی که پراکسی را نادیده می‌گیرند بیشترشان بازی‌هاست از اینترنت اصلی خودشان استفاده می‌کنند و مزاحمی برایشان نیست.",
+                               "Every app that honours the Windows proxy splits itself across this PC's internet and the phone's data: one connection one path, the next the other. Apps that ignore proxies - mostly games - keep using the PC's own internet and are left alone."),
+        ["mv_combine_on"] = ("فعال: هر دو مسیر در کار است", "On: both paths in use"),
+        ["mv_combine_off"] = ("غیرفعال", "Off"),
+        ["mv_combine_start"] = ("شروع تجمیع", "Start Combine"),
+        ["mv_combine_stop"] = ("پایان تجمیع", "Stop Combine"),
+        ["mv_combine_started"] = ("تجمیع فعال شد؛ هر دو مسیر در کار است.", "Combine started; both paths are in use."),
+        ["mv_combine_direct"] = ("اینترنت رایانه (↓ / ↑)", "This PC's internet (↓ / ↑)"),
+        ["mv_combine_phone"] = ("دیتای گوشی (↓ / ↑)", "The phone's data (↓ / ↑)"),
+        ["mv_combine_phone_down"] = ("مسیر گوشی پاسخ نمی‌دهد؛ همهٔ ترافیک فعلاً از اینترنت رایانه می‌گذرد و با برگشتن گوشی تقسیم خودبه‌خود ادامه می‌یابد.",
+                                     "The phone path is not answering; traffic is on this PC's internet for now, and the split resumes by itself when the phone is back."),
+        ["mv_combine_phone_recovered"] = ("مسیر گوشی برگشت و دوباره در کار است.", "The phone path recovered and is in use again."),
         ["mv_busy"] = ("لطفاً صبر کنید…", "Please wait…"),
         ["mv_done"] = ("انجام شد.", "Done."),
         ["mv_error"] = ("خطا", "Error"),

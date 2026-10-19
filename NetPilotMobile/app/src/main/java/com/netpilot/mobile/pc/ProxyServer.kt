@@ -41,11 +41,16 @@ object ProxyServer {
     /**
      * Concurrent connections.
      *
-     * A browser opens six at a time and the desktop reuses a small fixed set, so a working
-     * client never approaches this. It is a ceiling against a device being pinned, not a budget
-     * for real traffic.
+     * Two kinds of client use this relay now. The desktop's bash connection reuses a small
+     * fixed set - fine at the old 64. The newer combine mode is different: the PC points its
+     * system-wide proxy at this relay and dials one connection *per app connection*, so a
+     * busy desktop session (browser with its two dozen sockets, plus services, plus a
+     * download engine) can hold far more at once. 128 is still a ceiling against a device
+     * being pinned - each connection is two sockets here, so 128 is 256 fds, well inside
+     * what a phone's policy allows - but it is no longer one a desktop can bump into on an
+     * ordinary afternoon.
      */
-    const val MAX_OPEN_CONNECTIONS = 64
+    const val MAX_OPEN_CONNECTIONS = 128
 
     private val running = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

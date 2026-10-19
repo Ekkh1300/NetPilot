@@ -1,5 +1,6 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using NetPilot.Core.Logging;
@@ -22,12 +23,23 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        _singleInstanceMutex = new Mutex(true, "NetPilot_SingleInstance_Mutex", out bool createdNew);
-        if (!createdNew)
+        // Capture mode speaks for one instance only and must not be refused because a live
+        // copy of the app is running: it renders its own pages into files and exits.
+        // `--capture "page|lang|file.png;..."` - value picked positionally, so a page key
+        // that happens to collide with the "page|" example never decides the mode again.
+        int captureIdx = System.Array.IndexOf(e.Args, "--capture");
+        bool captureMode = captureIdx >= 0 && captureIdx + 1 < e.Args.Length;
+        string captureSpec = captureMode ? e.Args[captureIdx + 1] : null;
+
+        if (!captureMode)
         {
-            // Another instance is already running -> just exit silently.
-            Shutdown();
-            return;
+            _singleInstanceMutex = new Mutex(true, "NetPilot_SingleInstance_Mutex", out bool createdNew);
+            if (!createdNew)
+            {
+                // Another instance is already running -> just exit silently.
+                Shutdown();
+                return;
+            }
         }
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
@@ -68,9 +80,115 @@ public partial class App : Application
 
         Services.ServiceHub.Init();
 
+        // A previous run that crashed or was killed while it owed a restore must not leave the
+        // machine pointed at a proxy that no longer answers - that is the whole offline. The
+        // snapshot exists exactly for this moment: settings go back BEFORE the first window is
+        // built, and whatever the pages later report is measured on a machine that owns its own
+        // settings again.
+        if (Services.MobileVpnService.Instance.NeedsRestore)
+        {
+            Log.Info("app", "a previous run left a share applied; restoring before the window opens");
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                var r = await Services.MobileVpnService.Instance.RestoreSnapshotAsync();
+                Log.Info("app", r.Ok
+                    ? "leftover share was restored"
+                    : "restore of the leftover share FAILED: " + r.Key + " " + r.Detail);
+            });
+        }
+
         var window = new MainWindow();
         MainWindow = window;
+
+        // The spec was resolved at the top of OnStartup: it decides whether the single-instance
+        // mutex applies at all. See CapturePagesAsync for why this flag exists.
         window.Show();
+        if (captureMode)
+        {
+            IsExiting = true;   // the window's own close handler hides to tray; here we just finish
+            Log.Info("capture", "posting capture sequence");
+            // Background, not ApplicationIdle: the idle slot never arrives once continuous
+            // background work (timers, animations) owns the dispatcher, and a run that
+            // silently never starts is worse than one that races.
+            window.Dispatcher.InvokeAsync(
+                new System.Action(() => { _ = CapturePagesAsync(window, captureSpec); }),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>One spec is `page|lang|file.png`; taken one after another, each after the page
+    /// has had time to run its first real refresh, so what lands in the file is the page a
+    /// user would see, not an empty shell right after Show.</summary>
+    private static async System.Threading.Tasks.Task CapturePagesAsync(MainWindow window, string spec)
+    {
+        // A capture run flips languages to shoot them; the flip must be undone before exit,
+        // or the run silently rewrites the user's saved preference behind the screenshot.
+        string originalLang = Lang.Lang.Instance.Language;
+
+        foreach (var raw in (spec ?? "").Split(new[] { ';' }, System.StringSplitOptions.RemoveEmptyEntries))
+        {
+            var f = raw.Split('|');
+            if (f.Length != 3 || f.Any(p => string.IsNullOrWhiteSpace(p)))
+            {
+                Log.Warn("capture", "ignored a capture spec with the wrong shape: " + Redactor.Apply(raw));
+                continue;
+            }
+
+            string page = f[0], lang = f[1], file = f[2];
+            try
+            {
+                await System.Threading.Tasks.Task.Delay(300);
+                await window.Dispatcher.InvokeAsync(() =>
+                {
+                    Lang.Lang.Instance.SetLanguage(lang);
+                    (window.DataContext as ViewModels.MainViewModel)?.Switch(page);
+                });
+                await System.Threading.Tasks.Task.Delay(2600);
+
+                await window.Dispatcher.InvokeAsync(() =>
+                {
+                    var root = window.Content as System.Windows.Media.Visual;
+                    if (root == null)
+                    {
+                        Log.Warn("capture", "window content is not a visual; nothing saved");
+                        return;
+                    }
+
+                    // 1.5x for text that survives being pasted into documentation
+                    double scale = 1.5;
+                    double w = window.ActualWidth, h = window.ActualHeight;
+                    var rtb = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                        (int)Math.Ceiling(w * scale), (int)Math.Ceiling(h * scale),
+                        96 * scale, 96 * scale, System.Windows.Media.PixelFormats.Pbgra32);
+                    rtb.Render(root);
+
+                    var dir = System.IO.Path.GetDirectoryName(file);
+                    if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+                    var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                    enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(rtb));
+                    using (var fs = File.Create(file))
+                    {
+                        enc.Save(fs);
+                    }
+                    Log.Info("capture", $"{page} ({lang}) -> {file}");
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error("capture", $"page {page} ({lang}) failed", ex);
+                try { File.WriteAllText(file + ".err.txt", ex.ToString()); } catch { }
+            }
+        }
+
+        Log.Info("capture", "capture run finished; exiting");
+        try
+        {
+            // Restore in one shot on the way out; SetLanguage persists, so leaving the flip
+            // standing would outlive the capture.
+            await window.Dispatcher.InvokeAsync(() => Lang.Lang.Instance.SetLanguage(originalLang));
+        }
+        catch { }
+        Current.Shutdown();
     }
 
     /// <summary>

@@ -1758,6 +1758,78 @@
                     </Border>
                 </UniformGrid>
 
+                <!-- ================= combine: both internets, for every app =================
+                     Separate from the transfer card below on purpose: that one moves the
+                     machine ONTO the phone (replace), this one puts both paths to work for
+                     every proxy-honouring app at once (aggregate). The split the user sees is
+                     the listener's own byte counters, so a page saying "both" has numbers
+                     behind it. -->
+                <Border Style="{StaticResource S.Card}" Margin="0,16,0,0"
+                        Visibility="{Binding PhonePathReady, Converter={StaticResource BoolToVis}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <DockPanel LastChildFill="False" Margin="0,0,0,2">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Lang[mv_combine_title]}"
+                                           Style="{StaticResource T.Section}" />
+                                <Border DockPanel.Dock="Right" Style="{StaticResource S.Chip}"
+                                        Visibility="{Binding CombineRunning, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Text="{Binding CombineText}" FontSize="11.5" FontWeight="SemiBold"
+                                               Foreground="{Binding CombineBrush}" />
+                                </Border>
+                            </DockPanel>
+
+                            <TextBlock Text="{Binding Lang[mv_combine_body]}" Style="{StaticResource T.Muted}"
+                                       TextWrapping="Wrap" MaxWidth="700" HorizontalAlignment="Left" />
+
+                            <!-- the live split: empty until the first byte moved, because a row
+                                 of zeros reads as broken, and it is not broken - it is unused -->
+                            <Grid Margin="0,12,0,0"
+                                  Visibility="{Binding CombineRunning, Converter={StaticResource BoolToVis}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Lang[mv_combine_direct]}"
+                                           Style="{StaticResource T.Label}" Margin="0,0,16,3" />
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DirectTrafficText}"
+                                           Style="{StaticResource T.Mono}" FontSize="12.5"
+                                           Foreground="{StaticResource B.Text}" Margin="0,0,0,3" />
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Lang[mv_combine_phone]}"
+                                           Style="{StaticResource T.Label}" Margin="0,0,16,0" />
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding PhoneTrafficText}"
+                                           Style="{StaticResource T.Mono}" FontSize="12.5"
+                                           Foreground="{StaticResource B.Text}" />
+                            </Grid>
+
+                            <TextBlock Text="{Binding CombineNotice}" Style="{StaticResource T.Hint}"
+                                       Foreground="{StaticResource B.Warning}" TextWrapping="Wrap" MaxWidth="700"
+                                       HorizontalAlignment="Left" Margin="0,8,0,0"
+                                       Visibility="{Binding CombineRunning, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
+                            <Button Command="{Binding StartCombineCommand}" Content="{Binding CombineToggleText}"
+                                    Style="{StaticResource S.Btn.Primary}" MinWidth="128"
+                                    Visibility="{Binding CombineRunning, Converter={StaticResource InvBoolToVis}}" />
+                            <Button Command="{Binding StopCombineCommand}"
+                                    Content="{Binding Lang[mv_combine_stop]}" Style="{StaticResource S.Btn.AccentSoft}"
+                                    MinWidth="128"
+                                    Visibility="{Binding CombineRunning, Converter={StaticResource BoolToVis}}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
                 <Grid Margin="0,16,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

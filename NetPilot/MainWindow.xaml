@@ -105,14 +105,30 @@
 
                 <ScrollViewer DockPanel.Dock="Top" VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding Nav}" Margin="0,8,0,0">
+                    <!-- Grouped nav: section headers are light labels, the radio behaviour
+                         and its exclusive grouping live in the item template exactly as before.
+                         The flat Nav list drives selection and the page host; this rendering
+                         only changes what the eye reads. -->
+                    <ItemsControl ItemsSource="{Binding NavSections}" Margin="0,8,0,0">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <RadioButton Style="{StaticResource S.NavItem}"
-                                             GroupName="netpilot-nav"
-                                             Tag="{Binding Glyph}"
-                                             Content="{Binding Label}"
-                                             IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Label}"
+                                               Style="{StaticResource T.Muted}"
+                                               FontSize="10.5" FontWeight="SemiBold"
+                                               Margin="22,12,22,3" />
+                                    <ItemsControl ItemsSource="{Binding Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <RadioButton Style="{StaticResource S.NavItem}"
+                                                             GroupName="netpilot-nav"
+                                                             Tag="{Binding Glyph}"
+                                                             Content="{Binding Label}"
+                                                             IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

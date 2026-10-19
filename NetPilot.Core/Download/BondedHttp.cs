@@ -33,6 +33,13 @@ public sealed class BondNetwork
     public int Streams { get; }
     public long MaxBytesPerSecond { get; }
 
+    /// <summary>
+    /// The HTTP proxy a phone offers, when this path goes through it rather than out of a local
+    /// adapter. Null for an ordinary adapter path, which binds a socket to
+    /// <see cref="LocalAddress"/> instead - a path is either one or the other, never both.
+    /// </summary>
+    public IPEndPoint Proxy { get; }
+
     /// <exception cref="ArgumentOutOfRangeException">A network with no streams has nothing to do.</exception>
     public BondNetwork(string name, IPAddress localAddress,
                        int streams = DefaultStreams, long maxBytesPerSecond = 0)
@@ -49,7 +56,53 @@ public sealed class BondNetwork
         MaxBytesPerSecond = maxBytesPerSecond;
     }
 
-    public override string ToString() => $"{Name} ({LocalAddress}) x{Streams}";
+    /// <summary>
+    /// A path that leaves through a phone's HTTP proxy (the paired handset's mobile data)
+    /// rather than through a local adapter.
+    ///
+    /// It is a first-class path and not a special case because it is used exactly like one:
+    /// several streams subscribe to the shared block queue, get their own
+    /// <see cref="RemoteFile"/> probe and are dropped for backing off like any adapter. The
+    /// phone's proxy resolves and connects from the handset, so an HTTPS range request arrives
+    /// there and is carried into - or out of - whatever tunnel the phone is running.
+    /// </summary>
+    /// <exception cref="ArgumentException">Not an address, or a port outside 1..65535.</exception>
+    public static BondNetwork ViaProxy(string name, string proxyHost, int proxyPort,
+                                       int streams = DefaultStreams,
+                                       long maxBytesPerSecond = 0)
+    {
+        if (streams < 1)
+            throw new ArgumentOutOfRangeException(nameof(streams),
+                $"{name}: a network needs at least one stream to take any work");
+        if (string.IsNullOrWhiteSpace(proxyHost))
+            throw new ArgumentException($"{name}: no proxy host", nameof(proxyHost));
+        if (proxyPort < 1 || proxyPort > 65535)
+            throw new ArgumentOutOfRangeException(nameof(proxyPort), $"{name}: proxy port out of range");
+
+        // Resolved here rather than dialled by name, because the proxy may be reached over
+        // several interfaces; the loopback would be right for a tether and wrong for a LAN
+        // phone, and the caller knows which one applies. ResolveAsync elsewhere - this
+        // synchronous resolve is for an already-validated dotted address or a name fed
+        // through by a UI that has already probed the endpoint.
+        var proxy = new IPEndPoint(Dns.GetHostAddresses(proxyHost)
+            .First(a => a.AddressFamily == AddressFamily.InterNetwork), proxyPort);
+
+        return new BondNetwork(name, null, streams, maxBytesPerSecond, proxy);
+    }
+
+    private BondNetwork(string name, IPAddress localAddress, int streams,
+                        long maxBytesPerSecond, IPEndPoint proxy)
+    {
+        Name = name;
+        LocalAddress = localAddress;
+        Streams = streams;
+        MaxBytesPerSecond = maxBytesPerSecond;
+        Proxy = proxy;
+    }
+
+    public override string ToString() => Proxy != null
+        ? $"{Name} (via {Proxy}) x{Streams}"
+        : $"{Name} ({LocalAddress}) x{Streams}";
 }
 
 /// <summary>What the server said about the file before any of it was downloaded.</summary>
@@ -99,14 +152,27 @@ public sealed class BondedHttp
     /// <summary>Range header, which is the whole mechanism in one line.</summary>
     private static string Range(long from, long to) => $"bytes={from}-{to}";
 
-    internal static HttpClient HandlerFor(IPAddress bindTo, long maxBytesPerSecond)
+    internal static HttpClient HandlerFor(IPAddress bindTo, long maxBytesPerSecond) =>
+        HandlerFor(new BondNetwork("path", bindTo, 1, maxBytesPerSecond));
+
+    internal static HttpClient HandlerFor(BondNetwork network)
     {
-        var handler = new SocketsHttpHandler
+        var handler = new SocketsHttpHandler();
+
+        if (network.Proxy != null)
+        {
+            // Through the phone: the CONNECT happens on its proxy, so there is nothing to
+            // bind and no address to have an opinion about. Range semantics are unchanged -
+            // the phone relays bytes, and 206 comes back through it untouched.
+            handler.Proxy = new WebProxy($"http://{network.Proxy.Address}:{network.Proxy.Port}");
+        }
+        else
         {
             // Bind before connecting: this is what makes the OS route the socket out of the
             // right adapter. For HTTPS the TLS handshake happens after this returns, so it is
             // covered too - the socket is already on the network by then.
-            ConnectCallback = async (context, ct) =>
+            var bindTo = network.LocalAddress;
+            handler.ConnectCallback = async (context, ct) =>
             {
                 var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp)
                 {
@@ -123,10 +189,11 @@ public sealed class BondedHttp
                     socket.Dispose();
                     throw;
                 }
-            },
-            PooledConnectionLifetime = TimeSpan.FromMinutes(5),
-            MaxConnectionsPerServer = 256,
-        };
+            };
+        }
+
+        handler.PooledConnectionLifetime = TimeSpan.FromMinutes(5);
+        handler.MaxConnectionsPerServer = 256;
 
         return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
     }
@@ -140,13 +207,17 @@ public sealed class BondedHttp
     /// version markers come back here too, because they are needed before a resume decides
     /// whether resuming is safe at all.
     /// </summary>
-    public static async Task<RemoteFile> ProbeAsync(string url, IPAddress bindTo, CancellationToken ct = default)
+    public static async Task<RemoteFile> ProbeAsync(string url, IPAddress bindTo, CancellationToken ct = default) =>
+        await ProbeAsync(url, new BondNetwork("probe", bindTo, 1), ct).ConfigureAwait(false);
+
+    /// <summary>The same probe, for any path shape: an adapter address or a phone proxy.</summary>
+    public static async Task<RemoteFile> ProbeAsync(string url, BondNetwork network, CancellationToken ct = default)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
             (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             throw new ArgumentException($"'{url}' is not an http or https address", nameof(url));
 
-        using var client = HandlerFor(bindTo, 0);
+        using var client = HandlerFor(network);
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Range = new RangeHeaderValue(0, 0);
 
@@ -250,12 +321,12 @@ public sealed class BondedDownload
     /// Fetches the file and returns what the server said about it.
     ///
     /// Returns rather than throws when the server does not support ranges: the file is still
-    /// downloaded, just by one stream over the default route, which is the only honest answer
+    /// downloaded, just by one stream over the first network, which is the only honest answer
     /// available for a server that will not serve slices.
     /// </summary>
     public async Task<RemoteFile> RunAsync(CancellationToken ct = default)
     {
-        var remote = await BondedHttp.ProbeAsync(_url, _networks[0].LocalAddress, ct)
+        var remote = await BondedHttp.ProbeAsync(_url, _networks[0], ct)
                                      .ConfigureAwait(false);
 
         if (!remote.CanBond)
@@ -358,7 +429,7 @@ public sealed class BondedDownload
                                    System.Collections.Concurrent.ConcurrentDictionary<string, long> perNetwork,
                                    CancellationToken ct)
     {
-        using var client = BondedHttp.HandlerFor(network.LocalAddress, network.MaxBytesPerSecond);
+        using var client = BondedHttp.HandlerFor(network);
         using var throttle = new Throttle(network.MaxBytesPerSecond);
         var refused = 0;
         var failures = 0;

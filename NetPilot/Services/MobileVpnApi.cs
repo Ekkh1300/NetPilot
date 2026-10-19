@@ -254,7 +254,10 @@ public sealed class MobileVpnApi : IDisposable
                     await JsonAsync(res, 200, new
                     {
                         app = "NetPilot",
-                        version = "1.2.2",
+                        // Assembly-derived: the phone shows this on its pairing screen, and a
+                        // painted constant has already sent it the wrong number once.
+                        version = typeof(MobileVpnApi).Assembly.GetName().Version is { } v
+                            ? v.ToString(3) : "0",
                         api = 1,
                         paired = Paired,
                     }).ConfigureAwait(false);

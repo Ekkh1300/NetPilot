@@ -25,6 +25,13 @@ public class BondNetworkRow : ObservableObject
     public string Glyph { get; init; } = "\uE701";
     public IPAddress Address { get; init; }
 
+    /// <summary>Set instead of <see cref="Address"/> when this path is the paired phone's HTTP
+    /// proxy rather than a local adapter - the download dials its streams into that proxy and
+    /// everything arrives through the phone's tunnel.</summary>
+    public string ProxyHost { get; init; }
+    public int ProxyPort { get; init; }
+    public bool IsPhonePath => ProxyHost != null;
+
     private int _streams = BondNetwork.DefaultStreams;
     /// <summary>
     /// How many connections to run over this network.
@@ -41,6 +48,13 @@ public class BondNetworkRow : ObservableObject
 
     private bool _isSelected = true;
     public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    /// <summary>The BondNetwork this row describes - an adapter address, or the phone proxy.</summary>
+    /// <exception cref="ArgumentException">A proxy endpoint that is not an address.</exception>
+    public BondNetwork ToNetwork()
+        => IsPhonePath
+            ? BondNetwork.ViaProxy(Name, ProxyHost, ProxyPort, Streams)
+            : new BondNetwork(Name, Address, Streams);
 }
 
 /// <summary>How much of one download a particular network actually carried.</summary>
@@ -202,6 +216,30 @@ public class BondViewModel : PageVmBase
                                               StringComparer.OrdinalIgnoreCase);
 
             Networks.Clear();
+
+            // The paired phone, when there is one, goes first: it is usually the path an
+            // adapter cannot be - mobile data next to the home internet - and it needs no
+            // eligibility test, because the pairing already proved the proxy answers.
+            string phoneProxy = (MobileVpnService.Instance.PeerProxy ?? "").Trim();
+            if (phoneProxy.Length > 0 && MobileVpnService.IsValidProxyAddress(phoneProxy))
+            {
+                var (phoneHost, phonePort) = MobileVpnService.SplitProxyAddress(phoneProxy);
+                if (phoneHost.Length > 0 && int.TryParse(phonePort, out int phonePortNum) && phonePortNum > 0)
+                {
+                    Networks.Add(new BondNetworkRow
+                    {
+                        Name = L.Instance["bond_phone_name"],
+                        Ipv4 = phoneHost + ":" + phonePortNum,
+                        KindLabel = L.Instance["bond_phone_kind"],
+                        Glyph = "\uE774",
+                        ProxyHost = phoneHost,
+                        ProxyPort = phonePortNum,
+                        IsSelected = chosen.Count == 0 ||
+                                     chosen.Contains(L.Instance["bond_phone_name"]),
+                    });
+                }
+            }
+
             foreach (var a in all.Where(BondEligibility.IsBondable))
                 Networks.Add(new BondNetworkRow
                 {
@@ -289,7 +327,8 @@ public class BondViewModel : PageVmBase
 
     private async Task StartAsync()
     {
-        var selected = Networks.Where(n => n.IsSelected && n.Address != null).ToList();
+        var selected = Networks.Where(n => n.IsSelected &&
+                                          (n.Address != null || n.ProxyHost != null)).ToList();
         if (selected.Count == 0) { Notice = L.Instance["bond_pick_one"]; return; }
 
         var destination = Path.Combine(Folder, GuessFileName(Url));
@@ -307,7 +346,10 @@ public class BondViewModel : PageVmBase
         IsBusy = true;
         try
         {
-            var networks = selected.Select(n => new BondNetwork(n.Name, n.Address, n.Streams)).ToList();
+            // Each row already knows its own shape: an adapter address to bind, or the phone
+            // proxy to dial. Building them here, once, is the one place the check above and
+            // the engine below have to agree.
+            var networks = selected.Select(n => n.ToNetwork()).ToList();
             var download = new BondedDownload(Url, destination, networks);
             var speed = new SpeedMeter();
 

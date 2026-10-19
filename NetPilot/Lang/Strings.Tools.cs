@@ -50,7 +50,7 @@ static partial class Strings
         ["st_language"] = ("زبان رابط", "Interface Language"),
         ["st_persian"] = ("فارسی", "Persian"),
         ["st_english"] = ("English", "English"),
-        ["st_minimize_to_tray"] = ("کوچک‌شدن به Tray", "Minimize to tray"),
+        ["st_minimize_to_tray"] = ("کوچک‌شدن به سینی ویندوز", "Minimize to tray"),
         ["st_about"] = ("درباره", "About"),
         ["st_version"] = ("نسخه", "Version"),
         ["st_creator"] = ("سازنده", "Creator"),
@@ -63,6 +63,6 @@ static partial class Strings
         ["tray_quick_dns"] = ("DNS سریع", "Quick DNS"),
         ["tray_restore"] = ("بازگردانی DNS اصلی", "Restore Original DNS"),
         ["tray_exit"] = ("خروج", "Exit"),
-        ["tray_changed"] = ("DNS در Tray تغییر کرد", "DNS changed from tray"),
+        ["tray_changed"] = ("DNS از سینی ویندوز تغییر کرد", "DNS changed from tray"),
     });
 }

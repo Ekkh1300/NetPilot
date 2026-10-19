@@ -22,6 +22,16 @@ static partial class Strings
         ["profiles"] = ("پروفایل‌ها", "Profiles"),
         ["settings"] = ("تنظیمات", "Settings"),
 
+        // Sidebar section headers. Short, lowercase-in-English, and never a page name that
+        // duplicates the first item under it.
+        ["nav_group_start"] = ("شروع", "Start"),
+        ["nav_group_dns"] = ("DNS", "DNS"),
+        ["nav_group_network"] = ("شبکه", "Network"),
+        ["nav_group_history"] = ("تاریخچه", "History"),
+        ["nav_group_links"] = ("دانلود و اتصال گوشی", "Download & Phone Link"),
+        ["nav_group_tools"] = ("ابزارها", "Tools"),
+        ["nav_group_system"] = ("سیستم", "System"),
+
         ["search"] = ("جستجو…", "Search…"),
         ["add"] = ("افزودن", "Add"),
         ["edit"] = ("ویرایش", "Edit"),

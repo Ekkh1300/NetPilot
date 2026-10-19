@@ -54,6 +54,12 @@ public sealed class MobileVpnService
     private int _prevIfIndex;
     private string _proxyApplied;
 
+    /// <summary>True while the applied proxy is our own <see cref="AggregateProxy"/> rather
+    /// than the phone's directly - the restore has to switch that listener off as well, or it
+    /// keeps serving a page nobody is looking at. Read for the diagnostics log line that names
+    /// which mode is actually on.</summary>
+    private volatile bool _combineActive;
+
     /// <summary>
     /// Marker file for "this app changed the machine's network settings and has not put them
     /// back yet".
@@ -422,15 +428,17 @@ public sealed class MobileVpnService
             return MvResult.Fail("mv_restore_failed", output);
         }
 
+        bool wasCombine = _combineActive;
         _proxyApplied = null;
-        IsSharing = false;
+        ThisIsNotSharing();
         ClearMarker();
         if (failed > 0)
         {
             Log.Warn("tunnel", $"restore only partly succeeded: {restored} restored, {failed} refused");
             return MvResult.Fail("mv_restore_partial", $"restored {restored}, failed {failed}");
         }
-        Log.Info("tunnel", $"restore complete: {restored} adapters back to how the user had them");
+        Log.Info("tunnel", $"restore complete: {restored} adapters back to how the user had them" +
+                           (wasCombine ? "; the combine listener is off" : ""));
         return MvResult.Success("mv_snapshot_restored");
     }
 
@@ -662,7 +670,7 @@ foreach ($_ in @(Get-NetAdapter -ErrorAction SilentlyContinue)) {{
     /// they reach a string that is executed with administrator rights. <see cref="IsValidProxyAddress"/>
     /// is the policy; this is the guarantee that it ran.
     /// </summary>
-    private static (string host, string port) SplitProxyAddress(string validated)
+    internal static (string host, string port) SplitProxyAddress(string validated)
     {
         string s = validated.Trim();
         int schemeAt = s.IndexOf("://", StringComparison.Ordinal);
@@ -713,6 +721,105 @@ foreach ($_ in @(Get-NetAdapter -ErrorAction SilentlyContinue)) {{
         if (!await ProxyReachableAsync(proxy).ConfigureAwait(false))
             return MvResult.Fail("mv_proxy_unreachable");
 
+        var applied = await SetSystemProxyAsync(proxyHost + ":" + proxyPort).ConfigureAwait(false);
+        if (!applied.Ok) return applied;
+
+        Log.Info("mobile", "applied the peer proxy " + proxyHost + ":" + proxyPort +
+            " after verifying it answers as an HTTP proxy");
+        _proxyApplied = proxyHost + ":" + proxyPort;
+        _combineActive = false;
+        IsSharing = true;
+        WriteMarker("share");
+        return MvResult.Success("mv_share_started");
+    }
+
+    /// <summary>
+    /// Puts the machine's proxy settings at our own <see cref="AggregateProxy"/>, which dials
+    /// both the machine's internet and the phone's per connection. This is the system-wide
+    /// shape of the bond feature: every app that honours a proxy aggregates both paths without
+    /// knowing those paths exist, and apps that ignore proxies keep using the machine's own
+    /// internet as before - which is why nothing on this path ever touches a route, a metric
+    /// or a DNS setting.
+    /// </summary>
+    /// <remarks>
+    /// The safety machinery is the same as every other share: the phone path is validated and
+    /// has to prove it answers <em>before</em> the first byte of system state is touched, the
+    /// current settings are snapshotted first, and the marker file records that a restore is
+    /// owed even across a crash or a reboot.
+    /// </remarks>
+    public async Task<MvResult> ShareCombinedAsync(bool allowVpnChange)
+    {
+        string proxy = (PeerProxy ?? "").Trim();
+        if (proxy.Length == 0) return MvResult.Fail("mv_no_proxy");
+        if (!IsValidProxyAddress(proxy))
+        {
+            Log.Warn("mobile", "rejected a phone path that is not an address: " + Redactor.Apply(proxy));
+            return MvResult.Fail("mv_bad_proxy");
+        }
+
+        // Combine does not touch a single network setting - only the proxy pair - so a live PC
+        // VPN is not in its way: the machine's internet path (and therefore the tunnel) is
+        // what "direct" resolves to, while anything that goes to the phone goes through the
+        // phone's own tunnel. Both paths stay true to their own privacy guarantees.
+        _ = allowVpnChange;
+
+        if (NeedsRestore)
+        {
+            if (!HasSnapshot)
+            {
+                Log.Warn("tunnel", "cannot start combine: a restore is owed and the snapshot " +
+                                   "that would pay it is gone");
+                return MvResult.Fail("mv_snapshot_none");
+            }
+            Log.Info("tunnel", "already sharing; keeping the original snapshot rather than " +
+                               "recording our own modified proxy as the original");
+        }
+        else
+        {
+            var snap = await CaptureSnapshotAsync().ConfigureAwait(false);
+            if (!snap.Ok)
+            {
+                Log.Warn("tunnel", "cannot start combine: the current proxy settings could not " +
+                                   "be captured, so nothing was changed");
+                return snap;
+            }
+        }
+
+        // Bind first, then retarget: a proxy setting that nothing answers would black-hole the
+        // machine, so the listener must be up and answering before the settings move.
+        if (!AggregateProxy.Instance.Start(proxy))
+            return MvResult.Fail("mv_error", "combine proxy could not bind");
+
+        if (!await ProxyReachableAsync(AggregateProxy.Instance.Endpoint).ConfigureAwait(false))
+        {
+            AggregateProxy.Instance.Stop();
+            return MvResult.Fail("mv_proxy_unreachable",
+                AggregateProxy.Instance.Endpoint + " would not answer");
+        }
+
+        var applied = await SetSystemProxyAsync(AggregateProxy.Instance.Endpoint).ConfigureAwait(false);
+        if (!applied.Ok)
+        {
+            AggregateProxy.Instance.Stop();
+            return applied;
+        }
+
+        _proxyApplied = AggregateProxy.Instance.Endpoint;
+        _combineActive = true;
+        IsSharing = true;
+        WriteMarker("combine");
+        Log.Info("tunnel", $"combine started: system proxy -> {_proxyApplied}, " +
+                           $"phone path {proxy} + the machine's own internet");
+        return MvResult.Success("mv_combine_started");
+    }
+
+    /// <summary>
+    /// Writes one proxy address into both places Windows listens to - netsh for WinHTTP, the
+    /// per-user Internet Settings value for WinINET - passing the address through an
+    /// environment variable rather than the script text.
+    /// </summary>
+    private async Task<MvResult> SetSystemProxyAsync(string hostPort)
+    {
         // The address is passed as an environment variable and read back inside the script, never
         // interpolated into the script text.
         //
@@ -735,16 +842,10 @@ Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet
         {
             // Reassembled from the two validated pieces, so the script never sees the raw string
             // in any form. The host is already known to be a host and the port a number.
-            ["NP_PROXY_ADDR"] = proxyHost + ":" + proxyPort,
+            ["NP_PROXY_ADDR"] = hostPort,
         }).ConfigureAwait(false);
         if (!ok || !output.Contains("OK")) return MvResult.Fail("mv_error", output);
-
-        Log.Info("mobile", "applied the peer proxy " + proxyHost + ":" + proxyPort +
-            " after verifying it answers as an HTTP proxy");
-        _proxyApplied = proxyHost + ":" + proxyPort;
-        IsSharing = true;
-        WriteMarker("share");
-        return MvResult.Success("mv_share_started");
+        return MvResult.Success();
     }
 
     /// <summary>
@@ -820,6 +921,15 @@ Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet
                        StringComparison.Ordinal);
         }
         catch { return false; }   // refused / reset / silence: not a proxy
+    }
+
+    /// <summary>The shared tail of every share mode: the proxy settings rolled back, the
+    /// owning flag dropped, and - for combine mode - the local listener with it.</summary>
+    private void ThisIsNotSharing()
+    {
+        _combineActive = false;
+        AggregateProxy.Instance.Stop();
+        IsSharing = false;
     }
 
     public Task<MvResult> StopShareAsync() => RestoreSnapshotAsync();

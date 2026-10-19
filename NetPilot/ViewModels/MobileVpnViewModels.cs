@@ -195,7 +195,7 @@ public sealed class MobileVpnViewModel : PageVmBase
     public bool Paired
     {
         get => _paired;
-        private set { if (Set(ref _paired, value)) { Raise(nameof(PairedText)); Raise(nameof(PairedBrush)); } }
+        private set { if (Set(ref _paired, value)) { Raise(nameof(PairedText)); Raise(nameof(PairedBrush)); Raise(nameof(CanCombine)); Raise(nameof(PhonePathReady)); } }
     }
 
     private string _deviceText = "";
@@ -204,11 +204,71 @@ public sealed class MobileVpnViewModel : PageVmBase
     private string _phoneReport = "";
     public string PhoneReport { get => _phoneReport; private set => Set(ref _phoneReport, value); }
 
+    // ---------------- combine (system-wide aggregation) ----------------
+
+    /// <summary>The paired phone has reported a proxy: the only ingredient combine needs.</summary>
+    public bool PhonePathReady => !string.IsNullOrWhiteSpace(MobileVpnService.Instance.PeerProxy);
+    public bool CanCombine => !_busy && PhonePathReady;
+
+    private bool _combineRunning;
+    public bool CombineRunning
+    {
+        get => _combineRunning;
+        private set { if (Set(ref _combineRunning, value)) { Raise(nameof(CombineText)); Raise(nameof(CombineBrush)); Raise(nameof(CombineToggleText)); } }
+    }
+
+    public string CombineText => L.Instance[CombineRunning ? "mv_combine_on" : "mv_combine_off"];
+    public Brush CombineBrush => CombineRunning ? Good : Muted;
+    public string CombineToggleText => L.Instance[CombineRunning ? "mv_combine_stop" : "mv_combine_start"];
+
+    /// <summary>Live split of what actually moved, for the honest proof that both paths are in
+    /// use. Empty until the first connection, because a zero row reads as broken.</summary>
+    private string _directTrafficText = "";
+    public string DirectTrafficText { get => _directTrafficText; private set => Set(ref _directTrafficText, value); }
+
+    private string _phoneTrafficText = "";
+    public string PhoneTrafficText { get => _phoneTrafficText; private set => Set(ref _phoneTrafficText, value); }
+
+    private string _combineNotice = "";
+    public string CombineNotice { get => _combineNotice; private set => Set(ref _combineNotice, value); }
+
+    private static string BytesText(long b) => b switch
+    {
+        < 0 => "0 B",
+        < 1024 => $"{b} B",
+        < 1024 * 1024 => $"{b / 1024.0:0.#} KB",
+        < 1024L * 1024 * 1024 => $"{b / (1024.0 * 1024):0.#} MB",
+        _ => $"{b / (1024.0 * 1024 * 1024):0.##} GB",
+    };
+
+    private async System.Threading.Tasks.Task StartCombineAsync()
+    {
+        _busy = true;
+        StartCombineCommand.RaiseCanExecuteChanged();
+        StopCombineCommand.RaiseCanExecuteChanged();
+        try
+        {
+            var r = await MobileVpnService.Instance.ShareCombinedAsync(allowVpnChange: false);
+            SetStatus(r);
+            CombineRunning = r.Ok || MobileVpnService.Instance.IsSharing;
+        }
+        catch (Exception ex) { App.LogCrash(ex); StatusMessage = ex.Message; }
+        finally
+        {
+            _busy = false;
+            StartCombineCommand.RaiseCanExecuteChanged();
+            StopCombineCommand.RaiseCanExecuteChanged();
+            Raise(nameof(CanCombine));
+        }
+    }
+
     public AsyncRelayCommand RefreshCommand { get; }
     public AsyncRelayCommand CaptureCommand { get; }
     public AsyncRelayCommand RestoreCommand { get; }
     public AsyncRelayCommand ShareCommand { get; }
     public AsyncRelayCommand StopCommand { get; }
+    public AsyncRelayCommand StartCombineCommand { get; }
+    public AsyncRelayCommand StopCombineCommand { get; }
     public RelayCommand ToggleApiCommand { get; }
     public RelayCommand NewCodeCommand { get; }
 
@@ -226,6 +286,8 @@ public sealed class MobileVpnViewModel : PageVmBase
         RestoreCommand = new AsyncRelayCommand(RestoreAsync);
         ShareCommand = new AsyncRelayCommand(ShareAsync, () => !_busy);
         StopCommand = new AsyncRelayCommand(StopShareAsync, () => !_busy);
+        StartCombineCommand = new AsyncRelayCommand(StartCombineAsync, () => CanCombine);
+        StopCombineCommand = new AsyncRelayCommand(StopShareAsync, () => !_busy);
         ToggleApiCommand = new RelayCommand(ToggleApi);
         NewCodeCommand = new RelayCommand(() =>
         {
@@ -241,6 +303,9 @@ public sealed class MobileVpnViewModel : PageVmBase
         SnapshotText = MobileVpnService.Instance.HasSnapshot
             ? MobileVpnService.Instance.SnapshotTime : "";
         HasSnapshot = MobileVpnService.Instance.HasSnapshot;
+
+        // Combine may already be running from earlier in this session.
+        CombineRunning = AggregateProxy.Instance.Running;
 
         // Neutral placeholders so the tiles are never blank while the first probe runs
         // (it takes about a second to start PowerShell and collect the adapters).
@@ -288,6 +353,8 @@ public sealed class MobileVpnViewModel : PageVmBase
         Raise(nameof(PairedText));
         Raise(nameof(SharingText));
         Raise(nameof(SharingBrush));
+        Raise(nameof(CombineText));
+        Raise(nameof(CombineToggleText));
     }
 
     // -------------------------------------------------------------- polling
@@ -376,6 +443,35 @@ public sealed class MobileVpnViewModel : PageVmBase
         HasSnapshot = MobileVpnService.Instance.HasSnapshot;
         SnapshotText = HasSnapshot ? MobileVpnService.Instance.SnapshotTime : "";
 
+        // Combine: the listener is the whole truth - it exists only while a combine is applied
+        // and dies with the restore, so "Running" cannot lie about which mode is on. The live
+        // split comes from its counters: the honest proof that both paths carry traffic, empty
+        // rather than zero before the first byte has moved through them.
+        CombineRunning = AggregateProxy.Instance.Running;
+        if (CombineRunning)
+        {
+            var agg = AggregateProxy.Instance;
+            DirectTrafficText = $"{BytesText(agg.DirectDown)}  /  {BytesText(agg.DirectUp)}";
+            PhoneTrafficText = agg.PeerConnections > 0 || agg.PeerDown + agg.PeerUp > 0
+                ? $"{BytesText(agg.PeerDown)}  /  {BytesText(agg.PeerUp)}"
+                : "";
+            CombineNotice = agg.PeerEverDown
+                ? (agg.PeerHealthy ? L.Instance["mv_combine_phone_recovered"]
+                                   : L.Instance["mv_combine_phone_down"])
+                : "";
+        }
+        else
+        {
+            DirectTrafficText = "";
+            PhoneTrafficText = "";
+            CombineNotice = "";
+        }
+
+        // The phone path appears when the handset first reports it; without this raise the
+        // combine card would stay hidden until the page was rebuilt, which never happens.
+        Raise(nameof(PhonePathReady));
+        Raise(nameof(CanCombine));
+
         PhoneReport = s.MobileVpnActive.HasValue || !string.IsNullOrEmpty(MobileVpnApi.Instance.DeviceName)
             ? (string.IsNullOrEmpty(MobileVpnApi.Instance.DeviceDetail)
                 ? MobileVpnApi.Instance.DeviceName
@@ -448,8 +544,11 @@ public sealed class MobileVpnViewModel : PageVmBase
         {
             _busy = false;
             Sharing = MobileVpnService.Instance.IsSharing;
+            CombineRunning = false;
             ShareCommand.RaiseCanExecuteChanged();
             StopCommand.RaiseCanExecuteChanged();
+            StartCombineCommand.RaiseCanExecuteChanged();
+            StopCombineCommand.RaiseCanExecuteChanged();
         }
     }
 
