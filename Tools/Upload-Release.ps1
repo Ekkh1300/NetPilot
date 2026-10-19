@@ -13,17 +13,19 @@ $ErrorActionPreference = 'Continue'
 
 $gh    = 'C:\Program Files\GitHub CLI\gh.exe'
 $repo  = 'Ekkh1300/NetPilot'
-$tag   = 'v1.2.2-linux'
-$dir   = Join-Path $PSScriptRoot '..\release\NetPilot-linux-1.2.2'
+$tag   = 'v1.3.0'
+$dir   = Join-Path $PSScriptRoot '..\release\stage-1.3.0'
 
 # Largest first: if the connection dies again we want to know about it early rather than after
-# an hour of the last file.
-$assets = @(
-    'netpilot-linux-x64.tar.gz',
-    'netpilot-linux-arm64.tar.gz',
-    'README.md',
-    'SHA256SUMS.txt'
-)
+# an hour of the last file.ispotted by listing the stage directory instead of typing the list,
+# which is how the previous release's upload sent six files and forgot the seventh. The
+# checksum manifest is forced last - it is written by the staging step after every other
+# file, so listing by size would sometimes sort it earlier than its own inputs.
+$assets = @(Get-ChildItem $dir -File |
+    Where-Object { $_.Name -ne 'SHA256SUMS.txt' } |
+    Sort-Object Length -Descending |
+    ForEach-Object { $_.Name })
+if (Test-Path (Join-Path $dir 'SHA256SUMS.txt')) { $assets += 'SHA256SUMS.txt' }
 
 function Say($m) { Write-Host ("[{0}] {1}" -f (Get-Date -Format 'HH:mm:ss'), $m) }
 
@@ -94,9 +96,10 @@ if ($missing.Count -eq 0) {
     # whatever gh returned, and gh had failed with "unexpected EOF" - so the script reported a
     # published release that was still sitting there as a draft. Same failure mode as every
     # other one this logging work turned up: claiming something without evidence for it.
+    # Note: not --prerelease - this tag is a full release.
     $published = $false
     for ($try = 1; $try -le 5 -and -not $published; $try++) {
-        & $gh release edit $tag --repo $repo --draft=false --prerelease 2>&1 | Out-Null
+        & $gh release edit $tag --repo $repo --draft=false 2>&1 | Out-Null
         Start-Sleep -Seconds 4
         $state = (& $gh release view $tag --repo $repo --json isDraft,url 2>$null) -join ''
         if ($state -match '"isDraft":false') {
