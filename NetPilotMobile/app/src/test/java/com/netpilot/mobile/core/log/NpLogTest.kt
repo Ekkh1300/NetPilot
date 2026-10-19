@@ -211,15 +211,31 @@ class NpLogTest {
     fun theFileIsCappedAndOldOnesAreDropped() {
         // Enough entries, with a small cap, to force several rotations without writing
         // megabytes: this is about the bound holding, not about throughput.
+        val writtenBefore = NpLog.writtenCount
         val droppedBefore = NpLog.droppedCount
         repeat(6000) { NpLog.info("test", "line $it padded out so the file actually grows") }
-        waitForFile("line 5999", 60000)
-        Thread.sleep(1500)
-        // A burst may legitimately overflow a bounded queue, but it must be counted and it
-        // must be small. Losing half of it would mean the sink, not the producer, is the
-        // bottleneck - which is a bug in the writer, not an acceptable cost.
-        val lost = NpLog.droppedCount - droppedBefore
-        assertTrue("lost $lost of 6000 entries, so the sink is too slow", lost < 60)
+
+        // flush() is what makes the rest deterministic. Its marker is written by the same
+        // worker, so seeing it on disk proves every entry offered before it was either on
+        // the file or counted as dropped. Waiting for one particular line instead let this
+        // test fail with the scheduler: with a 2048-slot queue and an instant 6000-entry
+        // burst, whether the last line survives is a coin the scheduler flips, and on a
+        // slow CI runner it came up heads 2357 times.
+        assertTrue(
+            "the sink did not finish a 6000-entry burst inside 60 s " +
+                "(written=${NpLog.writtenCount - writtenBefore} dropped=${NpLog.droppedCount - droppedBefore})",
+            NpLog.flush(60_000)
+        )
+        val written = NpLog.writtenCount - writtenBefore   // burst survivors + the marker
+        val lost = NpLog.droppedCount - droppedBefore      // overflow plus failed writes
+
+        // Conservation: each of the 6000 offered entries and the flush marker is accounted
+        // exactly once. A hole here is entries that no counter admits losing.
+        assertEquals(6000 + 1, written + lost)
+
+        // Losing entries is the design; being beaten by half of one burst is not - that
+        // means the sink, not the producer, is the bottleneck.
+        assertTrue("lost $lost of 6000 entries, so the sink is too slow", lost < 3000)
 
         val files = dir.listFiles()?.filter { it.name.startsWith("netpilot") } ?: emptyList()
         assertTrue("expected at most 4 files, found ${files.size}", files.size <= 4)

@@ -275,6 +275,12 @@ object NpLog {
                 written.incrementAndGet()
             } catch (_: Throwable) {
                 writeFailures.incrementAndGet()
+                // This entry never landed, so it belongs in dropped as well: every entry
+                // offered must be accounted exactly once, written + dropped + queued. Left
+                // out, a failed write was a silent hole - which is how a 6000-entry burst on
+                // the CI runner produced two entries that no counter admitted losing, and
+                // the cap test could not prove anything about where they went.
+                dropped.incrementAndGet()
             }
         }
     }
@@ -452,19 +458,21 @@ object NpLog {
     fun flush(timeoutMs: Long = 3000): Boolean {
         // A marker written by the same worker: seeing it on disk means everything queued
         // before it has been written.
-        queue.offer(LogEntry(System.currentTimeMillis(), LogLevel.TRACE, "log", "__flush__", null))
-        return try {
-            // The flush marker is written by the same worker, so seeing it on disk means
-            // everything queued before it has been written.
-            val deadline = System.currentTimeMillis() + timeoutMs
-            while (System.currentTimeMillis() < deadline) {
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            // Re-offered on every poll rather than once at entry: the queue is bounded, and
+            // if it happens to be full at the first millisecond the offer fails and the
+            // caller would wait forever on a promise no one ever made. A retry costs one
+            // slot test per poll and keeps the contract honest.
+            queue.offer(LogEntry(System.currentTimeMillis(), LogLevel.TRACE, "log", "__flush__", null))
+            try {
                 val f = logFile
                 if (f != null && f.exists() && f.readText().contains("__flush__")) return true
-                Thread.sleep(25)
+            } catch (_: Throwable) {
+                false
             }
-            false
-        } catch (_: Throwable) {
-            false
+            Thread.sleep(25)
         }
+        return false
     }
 }
