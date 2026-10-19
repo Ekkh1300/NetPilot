@@ -146,7 +146,16 @@ object ProxyServer {
                         // desktop kept being told a live endpoint that nothing was listening
                         // on, and start() refused to bring it back because it short-circuits
                         // on `running`. Give the state back instead of lying about it.
-                        if (running.get()) stop()
+                        //
+                        // But only for OUR OWN socket. After a quick stop -> start (the CI
+                        // unit suite does exactly that between tests) the leftover accept of
+                        // the dead listener wakes holding the OLD `ss`, and a bare
+                        // `if (running)` check would tear down the NEW listener the same
+                        // instant it came up - the "proxy did not bind" assertion failure
+                        // that started this comment. `server === ss` is true while this loop
+                        // is still the live server; after any deliberate stop it is null,
+                        // and after a restart it is the successor.
+                        if (running.get() && server === ss) stop()
                         break
                     }
 

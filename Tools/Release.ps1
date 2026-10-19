@@ -1,7 +1,8 @@
-﻿# Releases NetPilot 1.2.4.
+﻿# Releases NetPilot 1.3.0.
 #
-# This is the release that carries the command-injection fixes, so the sequence matters more than
-# usual and each step says what it produced rather than just whether it ran:
+# This release carries the system-wide combine and the phone as a download path, so the
+# sequence matters as much as ever: each step says what it produced rather than just
+# whether it ran:
 #
 #   1. publish the Windows app, build the installer from it
 #   2. publish the daemon for linux-x64, linux-arm64, osx-x64, osx-arm64
